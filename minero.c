@@ -4,7 +4,7 @@
  * @brief Definición de función minero y función auxiliar privada miner
  *
  */
-
+#define _POSIX_C_SOURCE 200809L
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,11 +18,15 @@
 #include <fcntl.h>
 #include <linux/stat.h>
 #include <sys/stat.h>
+#include <signal.h>
+#include <string.h>
+#include <time.h>
+
+
 #include "pow.h"
 #include "minero.h"
 #include "monitor1.h"
 #include "utilities.h"
-#include <time.h>
 
 
 typedef struct {
@@ -33,6 +37,19 @@ typedef struct {
     bool* found;        /*!<Puntero a un boolean que marca si se ha encontrado la solución*/
 } Args;
 
+void handler(int sig)
+{
+    if (sig == SIGALRM)
+    {
+    }
+    else if (sig == SIGINT)
+    {
+    }if (sig == SIGTERM)
+    {
+    }
+    
+}
+
 /**
  * @brief Función encargada de buscar el resultado de la función hash
  * 
@@ -41,7 +58,7 @@ typedef struct {
 void *miner(void *args);
 
 
-int minero(int nrondas, int lag) {
+int minero(int seconds, int threads, Mem_Sys data) {
     pthread_t *hilos;       /*Hilos que se vana usar*/
     int i, j;
     int error;
@@ -52,15 +69,27 @@ int minero(int nrondas, int lag) {
     message msg;
     struct mq_attr attributes;
     mqd_t queue;
+    struct sigaction act;
 
     attributes.mq_maxmsg = N_MSG;
     attributes.mq_msgsize = sizeof(message);
     queue = mq_open(MQ_NAME, O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR, &attributes);
     
-    srand(time(NULL));
-    msg.target = rand() % POW_LIMIT;
-    msg.finish = false;
-
+    if (sigaction(SIGINT, &act, NULL) < 0)
+    {
+        perror("sigaction");
+        exit(EXIT_FAILURE);
+    }
+    if (sigaction(SIGALRM, &act, NULL) < 0)
+    {
+        perror("sigaction");
+        exit(EXIT_FAILURE);
+    }
+    if (sigaction(SIGTERM, &act, NULL) < 0)
+    {
+        perror("sigaction");
+        exit(EXIT_FAILURE);
+    }
 
 
     /*Reserva de memoria para los hilos*/
@@ -85,7 +114,7 @@ int minero(int nrondas, int lag) {
     fprintf(stdout, "[%d] Generating blocks...\n", getpid());
     fflush(stdout);
 
-    for (i = 0; i < nrondas; i++) {
+    for (i = 0; i < seconds; i++) {
         found = false;
 
         /*Rellenamos la información de los argumentos que se pasarán al miner*/
@@ -123,12 +152,12 @@ int minero(int nrondas, int lag) {
             } 
         }
 
-        if (i == nrondas - 1) {
+        if (i == seconds - 1) {
             msg.finish = true;
         }
 
         mq_send(queue, (char*)&msg, sizeof(message), 0);
-        esperar_milisegundos(lag);
+        esperar_milisegundos(threads);
         msg.target = msg.result;
     }
 

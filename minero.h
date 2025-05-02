@@ -13,9 +13,9 @@
 
 /**
  * @brief Proceso minero se encarga de buscar la solución, y enviar los bloques al comprobador
- * @param nrondas número de rondas que hay que buscar una solución
- * @param espera tiempo de espera entre rondas
+ * @param seconds tiempo que el minero estará activo
+ * @param threads hilos que empleará para minar
  */
-int minero(int nrondas, int lag);
+int minero(int seconds, int threads, Mem_Sys data);
 
 #endif

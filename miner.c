@@ -1,22 +1,136 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/mman.h>
+#include <sys/stat.h>        
+#include <fcntl.h>
+#include <errno.h>
+#include <unistd.h>
+
+
 #include "minero.h"
+#include "utilities.h"
+
+
+void valores_defecto(Mem_Sys *data);
 
 int main(int argc, char **argv) {
-    int nrondas, lag;
+    int n_seconds, n_threads;
+    int fd_shm;
+    int i;
+    Mem_Sys *data = NULL;
+
 
     if (argc != 3) {
         fprintf(stderr, "Invalid input\n");
         exit(EXIT_FAILURE);
-    } else if ((nrondas = atol(argv[1])) <= 0) {
+    } else if ((n_seconds = atol(argv[1])) <= 0) {
         fprintf(stderr, "Invalid input in argument 1\n");
         exit(EXIT_FAILURE);
-    } else if ((lag = atol(argv[2])) < 0) {
+    } else if ((n_threads = atol(argv[2])) < 1) {
         fprintf(stderr, "Invalid input in argument 2\n");
         exit(EXIT_FAILURE);
     }
 
-    minero(nrondas, lag);
+
+    FILE *f = fopen("/tmp/monitor_pid", "r");
+    if (f== NULL) {
+        printf("El monitor no se ha iniciado");
+        exit(EXIT_SUCCESS);
+    }
+    
+
+    int pid_monitor;
+    fscanf(f, "%d", &pid_monitor);
+    fclose(f);
+
+    if (kill(pid_monitor, 0) != 0) {
+        printf("El monitor no se ha iniciado");
+        exit(EXIT_SUCCESS);
+    } 
+
+
+    fd_shm = shm_open(SHM_NAME, O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
+  
+    if (fd_shm == -1) {
+      if (errno == EEXIST) {
+        fd_shm = shm_open(SHM_NAME, O_RDWR, 0);
+        if (fd_shm == -1) {
+          perror("Error opening the shared memory segment");
+          exit(EXIT_FAILURE);
+        }
+        else {
+        
+          data = mmap(NULL, sizeof(Mem_Sys), PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0);
+          close(fd_shm);
+          while (!data->listo) {
+              esperar_milisegundos(100);
+          }
+        }
+      }
+      else {
+        perror("Error creating the shared memory segment\n");
+        exit(EXIT_FAILURE);
+      }
+    }
+    else {
+      if (ftruncate(fd_shm, sizeof(Mem_Sys)) == -1) {
+        perror("ftruncate");
+        shm_unlink(SHM_NAME);
+        exit(EXIT_FAILURE);
+      }
+  
+      data = mmap(NULL, sizeof(Mem_Sys), PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0);
+      close(fd_shm);
+      if (data == MAP_FAILED) {
+          perror("mmap");
+          shm_unlink(SHM_NAME);
+          exit(EXIT_FAILURE);
+      }
+
+
+    }
+    if (data->mineros == MAX_PIDS) {
+        printf("El sistema está lleno");
+        exit(EXIT_SUCCESS);
+    }
+    for ( i = 0; i < data->mineros; i++) {
+        if (data->pids[i] == 0) {
+            data->pids[i] == getpid();
+            break;
+        }
+    }
+    
+    
+    minero(n_seconds, n_threads, data);
+
 
     exit(EXIT_SUCCESS);
+}
+
+
+
+void valores_defecto(Mem_Sys *data){
+    data->listo = false;
+    data->mineros = 0;
+
+    srand(time(NULL));
+    data->actual.target = rand() % POW_LIMIT;
+    
+    data->actual.target = 0;
+    data->primero = getpid();
+
+    if (sem_init(&data->empty, 1, MAX_MSG) == -1) {
+        perror("sem_init empty");
+        exit(EXIT_FAILURE);
+    }
+    if (sem_init(&data->fill, 1, 0) == -1) {
+        perror("sem_init full");
+        exit(EXIT_FAILURE);
+    }
+    if (sem_init(&data->mutex, 1, 1) == -1) {
+        perror("sem_init mutex");
+        exit(EXIT_FAILURE);
+    }
+    data->listo = true;
+
 }

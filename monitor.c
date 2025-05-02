@@ -43,7 +43,11 @@ int main(int argc, char **argv) {
     fprintf(stdout, "Invalid input in argument 1\n");
     exit(EXIT_FAILURE);
   }
-
+  /* No eliminar, es para comprobar si está activo*/
+  FILE *f = fopen("/tmp/monitor_pid", "w");
+  fprintf(f, "%d", getpid());
+  fclose(f);
+  
 
   /*Creación de la memoria y distribución de tareas*/
   fd_shm = shm_open(SHM_NAME, O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
