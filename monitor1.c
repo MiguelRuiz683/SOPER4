@@ -45,7 +45,7 @@ int monitor(int lag, int fd_shm) {
          * Con un sistema de semáforos productor distribuidor coge la información de la memoria
          * y la muestra por pantalla
          */
-        sem_wait(&data->fill);
+        sem_wait(&data->mutex);
         sem_wait(&data->mutex);
 
         if (data->in >= data->out) {
@@ -62,14 +62,14 @@ int monitor(int lag, int fd_shm) {
         }
 
         sem_post(&data->mutex);
-        sem_post(&data->empty);
+        sem_post(&data->ganador);
 
         if (flag) {            
             munmap(data,sizeof(data_message));
             shm_unlink(SHM_NAME);
-            sem_destroy(&data->empty);
+            sem_destroy(&data->ganador);
             sem_destroy(&data->mutex);
-            sem_destroy(&data->fill);
+            sem_destroy(&data->mutex);
             return EXIT_SUCCESS;
         }
         

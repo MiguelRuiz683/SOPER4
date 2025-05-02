@@ -41,11 +41,11 @@ int comprobador(int lag, int fd_shm) {
         exit(EXIT_FAILURE);
     }
 
-    if (sem_init(&data->empty, 1, MAX_MSG) == -1) {
-        perror("sem_init empty");
+    if (sem_init(&data->ganador, 1, MAX_MSG) == -1) {
+        perror("sem_init ganador");
         exit(EXIT_FAILURE);
     }
-    if (sem_init(&data->fill, 1, 0) == -1) {
+    if (sem_init(&data->mutex, 1, 0) == -1) {
         perror("sem_init full");
         exit(EXIT_FAILURE);
     }
@@ -88,7 +88,7 @@ void comprueba(message msg, data_message *data){
     long objetivo = msg.target;
     long result = msg.result;
 
-    sem_wait(&data->empty);
+    sem_wait(&data->ganador);
     sem_wait(&data->mutex);
 
     data->target[(data->in)%BUFFER_SIZE] = objetivo;
@@ -108,7 +108,7 @@ void comprueba(message msg, data_message *data){
     data->in+=1;
 
     sem_post(&data->mutex);
-    sem_post(&data->fill);
+    sem_post(&data->mutex);
 
     
     

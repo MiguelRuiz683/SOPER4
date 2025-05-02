@@ -86,19 +86,29 @@ int main(int argc, char **argv) {
           shm_unlink(SHM_NAME);
           exit(EXIT_FAILURE);
       }
-
+      memset(data, 0, sizeof(Mem_Sys));
+      valores_defecto(data);
 
     }
+    sem_wait(&data->mutex);
     if (data->mineros == MAX_PIDS) {
         printf("El sistema está lleno");
         exit(EXIT_SUCCESS);
     }
-    for ( i = 0; i < data->mineros; i++) {
+    for ( i = 0; i <= data->mineros; i++) {
         if (data->pids[i] == 0) {
             data->pids[i] == getpid();
             break;
         }
     }
+    for ( i = 0; i <= data->mineros; i++) {
+        if (data->carteras[i].pid == 0) {
+            data->carteras[i].pid = getpid();
+        }
+        
+    }
+    data->mineros++;
+    sem_post(&data->mutex);
     
     
     minero(n_seconds, n_threads, data);
@@ -113,22 +123,18 @@ void valores_defecto(Mem_Sys *data){
     data->listo = false;
     data->mineros = 0;
 
-    srand(time(NULL));
-    data->actual.target = rand() % POW_LIMIT;
-    
     data->actual.target = 0;
+    
     data->primero = getpid();
 
-    if (sem_init(&data->empty, 1, MAX_MSG) == -1) {
-        perror("sem_init empty");
-        exit(EXIT_FAILURE);
-    }
-    if (sem_init(&data->fill, 1, 0) == -1) {
-        perror("sem_init full");
+    data->actual.votos_tot = 0;
+
+    if (sem_init(&data->ganador, 1, 1) == -1) {
+        perror("sem_init ganador");
         exit(EXIT_FAILURE);
     }
     if (sem_init(&data->mutex, 1, 1) == -1) {
-        perror("sem_init mutex");
+        perror("sem_init full");
         exit(EXIT_FAILURE);
     }
     data->listo = true;

@@ -16,6 +16,7 @@
 #define MAX_MSG 100
 #define N_MSG 7
 #define MAX_PIDS 100
+#define MAX_VOT 100
 #define SHM_NAME "/shm_data"
 #define MQ_NAME "/mq_data"
  
@@ -32,12 +33,13 @@ typedef struct {
 } CarteraMinero;
 
 typedef struct {
-  int id_bloque;          /*Id del bloque */
-  long target;            /*Número objetivo del minero*/
-  long result;            /*Número resultado del minero*/
-  pid_t pid;              /*PID del minero ganador*/ 
-  int votos_tot;          /*Votos totales*/
-  int votos_pos;          /*Votos positivos*/
+  int id_bloque;                      /*Id del bloque */
+  long target;                        /*Número objetivo del minero*/
+  long result;                        /*Número resultado del minero*/
+  pid_t pid;                          /*PID del minero ganador*/ 
+  int votos_tot;                      /*Votos totales*/
+  int votos_pos;                      /*Votos positivos*/
+  CarteraMinero carteras[MAX_PIDS];   /*Las carteras de los mineros que participaron en la ronda*/
 } Bloque;
 
 
@@ -52,11 +54,10 @@ typedef struct {
   CarteraMinero carteras[MAX_PIDS];   /*Las carteras de los mienros activos*/
   Bloque ultimo;                      /*Último bloque resuelto*/
   Bloque actual;                      /*Bloque actual en resolución*/
-  sem_t empty;                        /*Semáforo de vacío de producto consumidor*/
-  sem_t fill;                         /*Semáforo de lleno de producto consumidor*/
-  sem_t mutex;                        /*Semáforo de mutex de producto consumidor*/
+  sem_t ganador;                      /*Semáforo de vacío de producto consumidor*/
+  sem_t mutex;                    /*Semáforo de lleno de producto consumidor*/
   bool listo;                         /*Marca si el sistema está listo*/
-  pid_t primero;
+  pid_t primero;                      /*Pid del priemr minero que participó en la minería*/
 }Mem_Sys;
 
 /**
