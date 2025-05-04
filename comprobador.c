@@ -13,25 +13,37 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <mqueue.h>
+#include <signal.h>
+
 
 #include "comprobador.h"
 #include "utilities.h"
 #include "pow.h"
+
+
+static volatile sig_atomic_t int_signal = 0;
+
+void handler(int sig) {
+    if (sig == SIGINT) {
+        int_signal = 1;
+    }
+}
 
 /**
  * Esta función es la encargada de comprobar si el resultado es el correcto y guardar en la memmoria los resultados
  */
 void comprueba();
 
-int comprobador(int lag, int fd_shm) {
+int comprobador(int fd_shm) {
     data_message *data = NULL;
     mqd_t queue;
     struct mq_attr attributes;
     unsigned int prior;
-    message msg;
+    Bloque bloque;
+    bool finish = false;
 
     attributes.mq_maxmsg = N_MSG;
-    attributes.mq_msgsize = sizeof(message);
+    attributes.mq_msgsize = sizeof(Bloque);
 
     data = mmap(NULL, sizeof(data_message), PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0);
     close(fd_shm);
@@ -41,11 +53,12 @@ int comprobador(int lag, int fd_shm) {
         exit(EXIT_FAILURE);
     }
 
-    if (sem_init(&data->ganador, 1, MAX_MSG) == -1) {
-        perror("sem_init ganador");
+    /*Inicialización de semáforos con control de errores*/
+    if (sem_init(&data->empty, 1, MAX_MSG) == -1) {
+        perror("sem_init empty");
         exit(EXIT_FAILURE);
     }
-    if (sem_init(&data->mutex, 1, 0) == -1) {
+    if (sem_init(&data->fill, 1, 0) == -1) {
         perror("sem_init full");
         exit(EXIT_FAILURE);
     }
@@ -61,55 +74,46 @@ int comprobador(int lag, int fd_shm) {
 
     while (1) {
         /*Recibe la información del minero*/
-        if (mq_receive(queue, (char*)&msg, sizeof(message), &prior) == -1) {
+        if (mq_receive(queue, (char*) &bloque, sizeof(Bloque), &prior) == -1) {
             perror("mq_receive");
             exit(EXIT_FAILURE);
         }
-        comprueba(msg, data);
 
-        if (msg.finish==true) {
-            munmap(data,sizeof(data_message));
-            shm_unlink(SHM_NAME);
-            mq_close(queue);
-            break;
+        if (finish == false) {
+            comprueba(bloque, data, &finish);
         }
 
-        esperar_milisegundos(lag);
-        
+        if (bloque.finish == true) {
+            munmap(data,sizeof(data_message));
+            mq_close(queue);
+            break;
+        }        
     }
 
     return EXIT_SUCCESS;
-    
 }
 
 
-void comprueba(message msg, data_message *data){
-    
-    long objetivo = msg.target;
-    long result = msg.result;
+void comprueba(Bloque bloque, data_message *data, bool *finish){
+    int i;
 
-    sem_wait(&data->ganador);
+    sem_wait(&data->empty);
     sem_wait(&data->mutex);
 
-    data->target[(data->in)%BUFFER_SIZE] = objetivo;
-    data->result[(data->in)%BUFFER_SIZE] = result;
+    if (int_signal == 1) {
+        data->finish[data->in%BUFFER_SIZE] = true;
+        finish = true;
+    }
 
     /*Comprobación de la respuesta obtenida por el minero*/
-    if (objetivo == pow_hash(result)) {
+    if (bloque.target == pow_hash(bloque.result)) {
         data->correct[(data->in)%BUFFER_SIZE] = true;
-        data->finish[(data->in)%BUFFER_SIZE] = false;
-        if (msg.finish) {
-            data->finish[(data->in)%BUFFER_SIZE] = true;
-        }
     } else {
         data->correct[(data->in)%BUFFER_SIZE] = false;
-        data->finish[(data->in)%BUFFER_SIZE] = true;
     }
-    data->in+=1;
+    data->bloques[(data->in)%BUFFER_SIZE] = bloque;
+    data->in++;
 
     sem_post(&data->mutex);
-    sem_post(&data->mutex);
-
-    
-    
+    sem_post(&data->fill);
 }

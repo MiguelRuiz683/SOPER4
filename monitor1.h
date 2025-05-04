@@ -12,6 +12,6 @@
  * @brief Función encargada de la comprobación del resultado obtenido por minero
  * 
  */
-int monitor(int lag, int fd_shm);
+int monitor(int fd_shm);
 
 #endif

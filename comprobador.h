@@ -13,6 +13,6 @@
   * @brief Proceso comprobador que decara si una solución es correcta y manda la información al 
   * proceso monitor
   */
- int comprobador(int lag, int fd_shm);
+ int comprobador(int fd_shm);
  
  #endif

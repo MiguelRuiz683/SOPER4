@@ -12,12 +12,13 @@
 #include <semaphore.h>
 #include "pow.h"
 
-#define BUFFER_SIZE 6
+#define BUFFER_SIZE 5
 #define MAX_MSG 100
 #define N_MSG 7
 #define MAX_PIDS 100
 #define MAX_VOT 100
 #define SHM_NAME "/shm_data"
+#define SHM_NAME2 "/shm_monitor"
 #define MQ_NAME "/mq_data"
  
  /**
@@ -40,6 +41,7 @@ typedef struct {
   int votos_tot;                      /*Votos totales*/
   int votos_pos;                      /*Votos positivos*/
   CarteraMinero carteras[MAX_PIDS];   /*Las carteras de los mineros que participaron en la ronda*/
+  bool finish;                      /*Marca si el bloque es el último*/
 } Bloque;
 
 
@@ -58,16 +60,18 @@ typedef struct {
   sem_t mutex;                    /*Semáforo de lleno de producto consumidor*/
   bool listo;                         /*Marca si el sistema está listo*/
   pid_t primero;                      /*Pid del priemr minero que participó en la minería*/
-}Mem_Sys;
+} Mem_Sys;
 
-/**
- * Estructura de los mensajes por cola
- */
 typedef struct {
-  long target;    /*Número objetivo del minero*/
-  long result;    /*Número resultado del minero*/
-  bool finish;    /*Marca el final del proceso minero*/
-} message;
+  Bloque bloques[BUFFER_SIZE]; /*Bloques que se han resuelto*/
+  bool correct[BUFFER_SIZE];  /*Boolenao que marca si el resultado es correcto*/
+  sem_t empty;                /*Semáforo de vacío de producto consumidor*/
+  sem_t fill;                 /*Semáforo de lleno de producto consumidor*/
+  sem_t mutex;                /*Semáforo de mutex de producto consumidor*/
+  int in;                     /*Contador de los datos que se guardan*/
+  int out;                    /*Contador de los datos que se sacan*/
+  bool finish[BUFFER_SIZE];              /*Marca si se debe terminar por motivos externos*/
+} data_message;
 
  
  #endif

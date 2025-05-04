@@ -26,65 +26,35 @@
 #define MSG_MAX 100
 
 /**
- * Main del monitor y el comprobador que crea la memoria compartida o la abre dependiendo de si
- * ya estaba creada o no
+ * Main del monitor y el comprobador
  * 
  */
 int main(int argc, char **argv) {
-  int lag, fd_shm;
+  int fd_shm;
+  pid_t monitor_pid;
 
   /*Control de errores*/
-  if (argc != 2) {
+  if (argc != 1) {
     fprintf(stdout, "Invalid input\n");
     exit(EXIT_FAILURE);
   }
 
-  if ((lag = atol(argv[1])) < 0) {
-    fprintf(stdout, "Invalid input in argument 1\n");
+  fd_shm = shm_open(SHM_NAME2, O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
+  if (fd_shm == -1) {
+    perror("Error al crear el fichero de memoria compartida");
     exit(EXIT_FAILURE);
   }
-  /* No eliminar, es para comprobar si está activo*/
-  FILE *f = fopen("/tmp/monitor_pid", "w");
-  fprintf(f, "%d", getpid());
-  fclose(f);
-  
 
-  /*Creación de la memoria y distribución de tareas*/
-  fd_shm = shm_open(SHM_NAME, O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
-  
-  if (fd_shm == -1) {
-    if (errno == EEXIST) {
-      fd_shm = shm_open(SHM_NAME, O_RDWR, 0);
-      if (fd_shm == -1) {
-        perror("Error opening the shared memory segment");
-        exit(EXIT_FAILURE);
-      }
-      else {
-        fprintf(stdout, "[%d] Printing bloks...\n", getpid());
-        fflush(stdout);
-        monitor(lag, fd_shm);
-        fprintf(stdout, "[%d] Finishing...\n", getpid());
-        fflush(stdout);
-      }
-    }
-    else {
-      perror("Error creating the shared memory segment\n");
-      exit(EXIT_FAILURE);
-    }
-  }
-  else {
-    if (ftruncate(fd_shm, sizeof(data_message)) == -1) {
-      perror("ftruncate");
-      shm_unlink(SHM_NAME);
-      exit(EXIT_FAILURE);
-    }
-    fprintf(stdout, "[%d] Checking blocks...\n", getpid());
-    fflush(stdout);
-    comprobador(lag, fd_shm);
-    fprintf(stdout, "[%d] Finishing...\n", getpid());
-    fflush(stdout);
-  }
+  monitor_pid = fork();
 
+  if (monitor_pid == -1) {
+    perror("Error al crear el proceso hijo");
+    exit(EXIT_FAILURE);
+  } else if (monitor_pid == 0) {
+    comprobador(fd_shm);
+  } else {
+    monitor(fd_shm);
+  }
 
   exit(EXIT_SUCCESS);
 }

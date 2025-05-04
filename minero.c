@@ -33,6 +33,7 @@
 //Bajar usr2
 
 static volatile sig_atomic_t alarm_signal = 0;
+static volatile sig_atomic_t int_signal = 0;
 static volatile sig_atomic_t usr1_signal = 0;
 static volatile sig_atomic_t usr2_signal = 0;
 
@@ -44,10 +45,11 @@ typedef struct {
     bool* found;        /*!<Puntero a un boolean que marca si se ha encontrado la solución*/
 } Args;
 
-void handler(int sig)
-{
+void handler(int sig) {
     if (sig == SIGALRM) {
         alarm_signal = 1;
+    } else if (sig == SIGINT) {
+        int_signal = 1;
     }
     else if (sig == SIGUSR1) {
         usr1_signal = 1;
@@ -55,7 +57,6 @@ void handler(int sig)
     else if (sig == SIGUSR2) {
         usr2_signal = 1;
     }
-    
 }
 
 /*Código para la siguiente ronda*/
@@ -95,7 +96,6 @@ int minero(int seconds, int threads, Mem_Sys *data) {
     long nintentos;         /*Intentos que realiza el miner para buescar*/
     bool found;             /*Variable donde se guarda si se ha encontrado la solución*/
     int status;
-    message msg;
     struct mq_attr attributes;
     mqd_t queue;
     struct sigaction act;
@@ -113,6 +113,11 @@ int minero(int seconds, int threads, Mem_Sys *data) {
     }
     
     if (sigaction(SIGALRM, &act, NULL) < 0) {
+        perror("sigaction");
+        exit(EXIT_FAILURE);
+    }
+
+    if (sigaction(SIGINT, &act, NULL) < 0) {
         perror("sigaction");
         exit(EXIT_FAILURE);
     }
@@ -147,9 +152,9 @@ int minero(int seconds, int threads, Mem_Sys *data) {
 
     /*Cierre de tuberías y liberación de memoria*/
     mq_close(queue);
-    mq_unlink(MQ_NAME);
+    mq_unlink(MQ_NAME); /*Creo que solo habría que cerrarlo si es el último proceso minero*/
 
-    wait(&status);
+    wait(&status); /*Wait por qué???*/
 
     exit(EXIT_SUCCESS);
 }
@@ -223,9 +228,9 @@ void start_mining(int threads, Mem_Sys *data, mqd_t *queue){
 
         free(hilos);
         free(arg);
-        if (alarm_signal == 1) {
-            //Falta borrar mem del sys
-            exit(EXIT_SUCCESS);
+        if (alarm_signal == 1 || int_signal == 1) {
+            //Falta borrar mem del sys y comprobar si es el último minero (si no no se puede borrar memoria) y enviar el bloque de finalización
+            exit(EXIT_SUCCESS); //Exit o return? Creoq que exit te saca del proceso entero, y aquí no se ha hecho un mq_close
         }
         else if (usr2_signal == 1) {
             perdedor(data);
