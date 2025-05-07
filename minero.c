@@ -30,7 +30,6 @@
 #include "monitor1.h"
 #include "utilities.h"
 
-//Bajar usr2
 
 static volatile sig_atomic_t alarm_signal = 0;
 static volatile sig_atomic_t usr1_signal = 0;
@@ -78,21 +77,17 @@ void next_round(Mem_Sys *data){
 void *miner(void *args);
 
 
-void start_mining(int threads, Mem_Sys *data, mqd_t *queue);
+void start_mining(int threads, Mem_Sys *data, mqd_t queue);
 
 
-void ganador(Mem_Sys *data, int resultado, mqd_t *queue);
+void ganador(Mem_Sys *data, int resultado, mqd_t queue);
 
 void perdedor(Mem_Sys *data);
 
-void terminar(Mem_Sys *data, mqd_t *queue);
+void terminar(Mem_Sys *data, mqd_t queue);
 
 
 int minero(int seconds, int threads, Mem_Sys *data) {
-    int i, j;
-    long nintentos;         /*Intentos que realiza el miner para buescar*/
-    bool found;             /*Variable donde se guarda si se ha encontrado la solución*/
-    int status;
     struct mq_attr attributes;
     mqd_t queue;
     struct sigaction act;
@@ -141,7 +136,7 @@ int minero(int seconds, int threads, Mem_Sys *data) {
     while (1) {
         esperar_milisegundos(100);
         if (usr1_signal == 1) {
-            start_mining(threads, data, &queue);
+            start_mining(threads, data, queue);
         }
         usr2_signal = 0;
         if (alarm_signal == 1) {
@@ -155,19 +150,18 @@ int minero(int seconds, int threads, Mem_Sys *data) {
     mq_close(queue);
     mq_unlink(MQ_NAME); /*Creo que solo habría que cerrarlo si es el último proceso minero*/
 
-    wait(&status); /*Wait por qué???*/
 
     exit(EXIT_SUCCESS);
 }
 
-void start_mining(int threads, Mem_Sys *data, mqd_t *queue){
+void start_mining(int threads, Mem_Sys *data, mqd_t queue){
     int n_intentos;
     bool found;
     Args *arg;              /*Estructuras de argumentos que se van a pasar por los hilos*/
     pthread_t *hilos;       /*Hilos que se vana usar*/
     int j;
     int error;
-    int resultado;
+    long resultado;
 
     usr1_signal = 0;
 
@@ -268,10 +262,10 @@ void *miner(void *args) {
             return NULL;
         }
     }
-    
+    return NULL;
 }
 
-void ganador(Mem_Sys *data, int resultado, mqd_t *queue){
+void ganador(Mem_Sys *data, int resultado, mqd_t queue){
     int i, j;
     int votos_favor=0;
 
@@ -303,7 +297,7 @@ void ganador(Mem_Sys *data, int resultado, mqd_t *queue){
     /*Cuenta y guarda los resultados en el bloque*/
     sem_wait(&data->mutex);
     for ( i = 0; i < data->cont_votos; i++) {
-        if (data->votos) {
+        if (data->votos[i] == true) {
             votos_favor++;
         }
         
@@ -321,9 +315,9 @@ void ganador(Mem_Sys *data, int resultado, mqd_t *queue){
 
     for ( j = 0, i = 0; i < data->mineros; ) {
         if (data->carteras[i].pid != 0) {
-            data->actual.carteras->pid = data->carteras[i].pid;
-            data->actual.carteras->monedas = data->carteras[i].monedas;
-            
+            data->actual.carteras[j].pid = data->carteras[i].pid;
+            data->actual.carteras[j].monedas = data->carteras[i].monedas;
+            j++;
         }
         
     }
@@ -357,7 +351,7 @@ void perdedor(Mem_Sys *data){
     usr2_signal = 0;
 }
 
-void terminar(Mem_Sys *data, mqd_t *queue){
+void terminar(Mem_Sys *data, mqd_t queue){
     int i;
     sem_wait(&data->mutex);
     for ( i = 0; i < MAX_PIDS; i++) {

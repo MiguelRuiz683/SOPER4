@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
@@ -5,6 +6,10 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
+#include <signal.h>       
+#include <string.h>
+
+
 
 
 #include "minero.h"
@@ -18,7 +23,8 @@ int main(int argc, char **argv) {
     int fd_shm;
     int i;
     Mem_Sys *data = NULL;
-
+    FILE *f;
+    int pid_monitor;
 
     if (argc != 3) {
         fprintf(stderr, "Invalid input\n");
@@ -32,14 +38,13 @@ int main(int argc, char **argv) {
     }
 
 
-    FILE *f = fopen("/tmp/monitor_pid", "r");
+    f = fopen("/tmp/monitor_pid", "r");
     if (f== NULL) {
         printf("El monitor no se ha iniciado");
         exit(EXIT_SUCCESS);
     }
     
 
-    int pid_monitor;
     fscanf(f, "%d", &pid_monitor);
     fclose(f);
 
@@ -97,7 +102,7 @@ int main(int argc, char **argv) {
     }
     for ( i = 0; i <= data->mineros; i++) {
         if (data->pids[i] == 0) {
-            data->pids[i] == getpid();
+            data->pids[i] = getpid();
             break;
         }
     }

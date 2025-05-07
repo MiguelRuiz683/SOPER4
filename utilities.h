@@ -57,7 +57,7 @@ typedef struct {
   Bloque ultimo;                      /*Último bloque resuelto*/
   Bloque actual;                      /*Bloque actual en resolución*/
   sem_t ganador;                      /*Semáforo de vacío de producto consumidor*/
-  sem_t mutex;                    /*Semáforo de lleno de producto consumidor*/
+  sem_t mutex;                        /*Semáforo de lleno de producto consumidor*/
   bool listo;                         /*Marca si el sistema está listo*/
   pid_t primero;                      /*Pid del priemr minero que participó en la minería*/
 } Mem_Sys;

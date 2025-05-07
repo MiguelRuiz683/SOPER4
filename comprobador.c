@@ -95,14 +95,13 @@ int comprobador(int fd_shm) {
 
 
 void comprueba(Bloque bloque, data_message *data, bool *finish){
-    int i;
 
     sem_wait(&data->empty);
     sem_wait(&data->mutex);
 
     if (int_signal == 1) {
         data->finish[data->in%BUFFER_SIZE] = true;
-        finish = true;
+        *finish = true;
     }
 
     /*Comprobación de la respuesta obtenida por el minero*/

@@ -58,7 +58,7 @@ int monitor(int fd_shm) {
             }
             fprintf(stdout, "Votes: %d/%d\n", data->bloques[data->out%BUFFER_SIZE].votos_pos, data->bloques[data->out%BUFFER_SIZE].votos_tot);
             fprintf(stdout, "Wallets:");
-            for (int i = 0; i < data->bloques[data->out%BUFFER_SIZE].votos_tot; i++) {
+            for ( i = 0; i < data->bloques[data->out%BUFFER_SIZE].votos_tot; i++) {
                 fprintf(stdout, " %d:%d", data->bloques[data->out%BUFFER_SIZE].carteras[i].pid, data->bloques[data->out%BUFFER_SIZE].carteras[i].monedas);
             }
 

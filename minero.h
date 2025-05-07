@@ -10,7 +10,7 @@
 
 #define N_HILOS 20
 
-
+#include "utilities.h"
 /**
  * @brief Proceso minero se encarga de buscar la solución, y enviar los bloques al comprobador
  * @param seconds tiempo que el minero estará activo
