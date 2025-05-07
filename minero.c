@@ -33,7 +33,6 @@
 //Bajar usr2
 
 static volatile sig_atomic_t alarm_signal = 0;
-static volatile sig_atomic_t int_signal = 0;
 static volatile sig_atomic_t usr1_signal = 0;
 static volatile sig_atomic_t usr2_signal = 0;
 
@@ -46,11 +45,9 @@ typedef struct {
 } Args;
 
 void handler(int sig) {
-    if (sig == SIGALRM) {
+    if (sig == SIGALRM || sig == SIGINT) {
         alarm_signal = 1;
-    } else if (sig == SIGINT) {
-        int_signal = 1;
-    }
+    } 
     else if (sig == SIGUSR1) {
         usr1_signal = 1;
     }
@@ -147,6 +144,10 @@ int minero(int seconds, int threads, Mem_Sys *data) {
             start_mining(threads, data, &queue);
         }
         usr2_signal = 0;
+        if (alarm_signal == 1) {
+            terminar(data, queue);
+        }
+        
     }
         
 
@@ -228,9 +229,8 @@ void start_mining(int threads, Mem_Sys *data, mqd_t *queue){
 
         free(hilos);
         free(arg);
-        if (alarm_signal == 1 || int_signal == 1) {
-            //Falta borrar mem del sys y comprobar si es el último minero (si no no se puede borrar memoria) y enviar el bloque de finalización
-            exit(EXIT_SUCCESS); //Exit o return? Creoq que exit te saca del proceso entero, y aquí no se ha hecho un mq_close
+        if (alarm_signal == 1) {
+            terminar(data, queue);
         }
         else if (usr2_signal == 1) {
             perdedor(data);
