@@ -24,7 +24,6 @@ int main(int argc, char **argv) {
     int i;
     Mem_Sys *data = NULL;
     int monitor;
-
     if (argc != 3) {
         fprintf(stderr, "Invalid input\n");
         exit(EXIT_FAILURE);
@@ -35,7 +34,8 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Invalid input in argument 2\n");
         exit(EXIT_FAILURE);
     }
-esperar_milisegundos(100);
+
+    esperar_milisegundos(100);
     monitor = shm_open(SHM_NAME2, O_RDWR, 0);
     if (monitor == -1) {
         perror("shm_open");
@@ -45,10 +45,9 @@ esperar_milisegundos(100);
         exit(1);
     }
     close(monitor);
-
-    shm_unlink(SHM_NAME);
     fd_shm = shm_open(SHM_NAME, O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
   
+
     if (fd_shm == -1) {
       if (errno == EEXIST) {
         fd_shm = shm_open(SHM_NAME, O_RDWR, 0);

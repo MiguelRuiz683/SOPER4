@@ -53,28 +53,26 @@ int monitor(int fd_shm) {
 
         if (data->in > data->out) {
             if (data->bloques[data->out%BUFFER_SIZE].finish == true) {
-                /* code */
-            }
-            
-            fprintf(stdout, "Id: %d\n", data->bloques[data->out%BUFFER_SIZE].id_bloque);
-            fprintf(stdout, "Winner: %d\n", data->bloques[data->out%BUFFER_SIZE].pid);
-            fprintf(stdout, "Target: %ld\n", data->bloques[data->out%BUFFER_SIZE].target);
-            if (data->correct[data->out%BUFFER_SIZE] == true) {
-                fprintf(stdout, "Solution: %ld (validated)\n", data->bloques[data->out%BUFFER_SIZE].result);
-            } else {
-                fprintf(stdout, "Solution: %ld (rejected)\n", data->bloques[data->out%BUFFER_SIZE].result);
-            }
-            fprintf(stdout, "Votes: %d/%d\n", data->bloques[data->out%BUFFER_SIZE].votos_pos, data->bloques[data->out%BUFFER_SIZE].votos_tot);
-            fprintf(stdout, "Wallets:");
-
-            for ( i = 0; i < data->bloques[data->out%BUFFER_SIZE].votos_tot+1; i++) {
-                fprintf(stdout, " %d:%d", data->bloques[data->out%BUFFER_SIZE].carteras[i].pid, data->bloques[data->out%BUFFER_SIZE].carteras[i].monedas);
-            }
-            printf("\n\n");
-            if (data->bloques[data->out%BUFFER_SIZE].finish || data->finish[data->out%BUFFER_SIZE]) {
                 flag = true;
+            }else{
+            
+                fprintf(stdout, "Id: %d\n", data->bloques[data->out%BUFFER_SIZE].id_bloque);
+                fprintf(stdout, "Winner: %d\n", data->bloques[data->out%BUFFER_SIZE].pid);
+                fprintf(stdout, "Target: %ld\n", data->bloques[data->out%BUFFER_SIZE].target);
+                if (data->correct[data->out%BUFFER_SIZE] == true) {
+                    fprintf(stdout, "Solution: %ld (validated)\n", data->bloques[data->out%BUFFER_SIZE].result);
+                } else {
+                    fprintf(stdout, "Solution: %ld (rejected)\n", data->bloques[data->out%BUFFER_SIZE].result);
+                }
+                fprintf(stdout, "Votes: %d/%d\n", data->bloques[data->out%BUFFER_SIZE].votos_pos, data->bloques[data->out%BUFFER_SIZE].votos_tot);
+                fprintf(stdout, "Wallets:");
+
+                for ( i = 0; i < data->bloques[data->out%BUFFER_SIZE].votos_tot+1; i++) {
+                    fprintf(stdout, " %d:%d", data->bloques[data->out%BUFFER_SIZE].carteras[i].pid, data->bloques[data->out%BUFFER_SIZE].carteras[i].monedas);
+                }
+                printf("\n\n");
+                fflush(stdout);
             }
-            fflush(stdout);
         }
 
         sem_post(&data->mutex);

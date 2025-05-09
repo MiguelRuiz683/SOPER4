@@ -70,11 +70,7 @@ utilities.o : wait.c utilities.h
 	$(CC) $(CFLAGS) -c $<
 
 example1:
-	./monitor 500 & \
-	sleep 2; \
-	./monitor 100 & \
-	sleep 2; \
-	./miner 10 0& \
+	./monitor & ./miner 4 2 & ./miner 6 10
 	wait
 	@echo "Todos los procesos han terminado"
 

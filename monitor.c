@@ -65,6 +65,6 @@ int main(int argc, char **argv) {
   } else {
     monitor(fd_shm);
   }
-
+  wait(NULL);
   exit(EXIT_SUCCESS);
 }

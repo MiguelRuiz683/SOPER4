@@ -52,6 +52,8 @@ void handler(int sig) {
     }
     else if (sig == SIGUSR2) {
         usr2_signal = 1;
+        printf("Señal 2\n");
+        fflush(stdout);
     }
 }
 
@@ -131,6 +133,7 @@ int minero(int seconds, int threads, Mem_Sys *data) {
     queue = mq_open(MQ_NAME, O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR, &attributes);
 
     if (data->primero == getpid()) {
+        esperar_milisegundos(100);
         next_round(data);
     }
     
@@ -280,6 +283,9 @@ void ganador(Mem_Sys *data, int resultado, mqd_t queue){
             i++;
         }
     }
+
+    printf("N miners: %d\n", data->mineros);
+    fflush(stdout);
     sem_post(&data->memory);
 
     /*Cuenta los votos introducidos*/
@@ -342,6 +348,11 @@ void ganador(Mem_Sys *data, int resultado, mqd_t queue){
 
 
 void perdedor(Mem_Sys *data){
+    
+    printf("Perdedor\n");
+    fflush(stdout);
+
+
     srand(time(NULL)); 
     sem_wait(&data->memory);
     if (rand() % 2) {
@@ -390,4 +401,6 @@ void terminar(Mem_Sys *data, mqd_t queue){
     mq_close(queue);
     
     mq_unlink(MQ_NAME);
+    shm_unlink(SHM_NAME);
+    exit(EXIT_SUCCESS);
 }
