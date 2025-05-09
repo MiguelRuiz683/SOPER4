@@ -50,7 +50,12 @@ int monitor(int fd_shm) {
         sem_wait(&data->fill);
         sem_wait(&data->mutex);
 
-        if (data->in >= data->out) {
+
+        if (data->in > data->out) {
+            if (data->bloques[data->out%BUFFER_SIZE].finish == true) {
+                /* code */
+            }
+            
             fprintf(stdout, "Id: %d\n", data->bloques[data->out%BUFFER_SIZE].id_bloque);
             fprintf(stdout, "Winner: %d\n", data->bloques[data->out%BUFFER_SIZE].pid);
             fprintf(stdout, "Target: %ld\n", data->bloques[data->out%BUFFER_SIZE].target);

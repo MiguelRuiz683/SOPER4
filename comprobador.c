@@ -82,15 +82,21 @@ int comprobador(int fd_shm) {
             exit(EXIT_FAILURE);
         }
 
-        if (finish == false) {
-            comprueba(bloque, data, &finish);
-        }
-
         if (bloque.finish == true) {
+            sem_wait(&data->empty);
+            sem_wait(&data->mutex);
+            data->finish[data->in%BUFFER_SIZE] = true;
+            sem_post(&data->mutex);
+            sem_post(&data->fill);
             munmap(data,sizeof(data_message));
             mq_close(queue);
             break;
-        }       
+        }      
+
+        if (finish == false) {
+            comprueba(bloque, data, &finish);
+        }
+ 
     }
 
     return EXIT_SUCCESS;

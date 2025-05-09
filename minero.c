@@ -146,10 +146,6 @@ int minero(int seconds, int threads, Mem_Sys *data) {
     }
         
 
-    /*Cierre de tuberías y liberación de memoria*/
-    mq_close(queue);
-    mq_unlink(MQ_NAME); /*Creo que solo habría que cerrarlo si es el último proceso minero*/
-
 
     exit(EXIT_SUCCESS);
 }
@@ -388,7 +384,10 @@ void terminar(Mem_Sys *data, mqd_t queue){
     sem_destroy(&data->memory);
     sem_destroy(&data->ganador);
 
+    data->actual.finish= true;
+    mq_send(queue, (char*)&data->actual, sizeof(Bloque), 0);
     munmap(data, sizeof(Mem_Sys));
     mq_close(queue);
     
+    mq_unlink(MQ_NAME);
 }
