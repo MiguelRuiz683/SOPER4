@@ -44,7 +44,9 @@ int comprobador(int fd_shm) {
 
     attributes.mq_maxmsg = N_MSG;
     attributes.mq_msgsize = sizeof(Bloque);
+    queue = mq_open(MQ_NAME, O_CREAT | O_RDONLY, S_IRUSR | S_IWUSR, &attributes);
 
+    
     data = mmap(NULL, sizeof(data_message), PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0);
     close(fd_shm);
     if (data == MAP_FAILED) {
@@ -52,6 +54,9 @@ int comprobador(int fd_shm) {
         shm_unlink(SHM_NAME);
         exit(EXIT_FAILURE);
     }
+
+    data->in = 0;
+    data->out = 0;
 
     /*Inicialización de semáforos con control de errores*/
     if (sem_init(&data->empty, 1, MAX_MSG) == -1) {
@@ -67,13 +72,11 @@ int comprobador(int fd_shm) {
         exit(EXIT_FAILURE);
     }
     
-    data->in = 0;
-    data->out = 0;
     
-    queue = mq_open(MQ_NAME, O_CREAT | O_RDONLY, S_IRUSR | S_IWUSR, &attributes);
 
     while (1) {
         /*Recibe la información del minero*/
+
         if (mq_receive(queue, (char*) &bloque, sizeof(Bloque), &prior) == -1) {
             perror("mq_receive");
             exit(EXIT_FAILURE);
@@ -87,7 +90,7 @@ int comprobador(int fd_shm) {
             munmap(data,sizeof(data_message));
             mq_close(queue);
             break;
-        }        
+        }       
     }
 
     return EXIT_SUCCESS;

@@ -8,7 +8,6 @@
 #ifndef _MINERO_H
 #define _MINERO_H
 
-#define N_HILOS 20
 
 #include "utilities.h"
 /**

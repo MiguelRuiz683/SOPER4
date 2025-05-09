@@ -68,6 +68,7 @@ void next_round(Mem_Sys *data){
         }
     }
     kill(getpid(), SIGUSR1);
+
 }
 /**
  * @brief Función encargada de buscar el resultado de la función hash
@@ -91,7 +92,6 @@ int minero(int seconds, int threads, Mem_Sys *data) {
     struct mq_attr attributes;
     mqd_t queue;
     struct sigaction act;
-
 
 
     /*Configuración de sigaction*/
@@ -125,13 +125,14 @@ int minero(int seconds, int threads, Mem_Sys *data) {
         fprintf(stderr, "Fallo al configurar la alarma\n");
     }
 
-    if (data->primero == getpid()) {
-        next_round(data);
-    }
-    
+  
     attributes.mq_maxmsg = N_MSG;
     attributes.mq_msgsize = sizeof(Bloque);
     queue = mq_open(MQ_NAME, O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR, &attributes);
+
+    if (data->primero == getpid()) {
+        next_round(data);
+    }
     
     while (1) {
         esperar_milisegundos(100);
@@ -142,7 +143,6 @@ int minero(int seconds, int threads, Mem_Sys *data) {
         if (alarm_signal == 1) {
             terminar(data, queue);
         }
-        
     }
         
 
@@ -161,19 +161,19 @@ void start_mining(int threads, Mem_Sys *data, mqd_t queue){
     pthread_t *hilos;       /*Hilos que se vana usar*/
     int j;
     int error;
-    long resultado;
+    long resultado=0;
 
     usr1_signal = 0;
 
     /*Reserva de memoria para los hilos*/
-    hilos = malloc(N_HILOS * sizeof(pthread_t));
+    hilos = malloc(threads * sizeof(pthread_t));
     if (!hilos) {
         perror("Error reservando memoria para hilos");
         exit(EXIT_FAILURE);
     }
 
     /*Reserva de memoria para los argumentos*/
-    arg = malloc(N_HILOS * sizeof(Args));
+    arg = malloc(threads * sizeof(Args));
     if (!arg) {
         perror("Error reservando memoria para argumentos");
         free(hilos);
@@ -181,23 +181,23 @@ void start_mining(int threads, Mem_Sys *data, mqd_t queue){
     }
     /*Se divide el espacio de búsqueda*/
     n_intentos = POW_LIMIT / threads;
-
+        
         found = false;
 
         /*Rellenamos la información de los argumentos que se pasarán al miner*/
-        for (j = 0; j < N_HILOS; j++) {
+        for (j = 0; j < threads; j++) {
             arg[j].ini = n_intentos * j;
 
-            if (j != N_HILOS - 1){
+            if (j != threads - 1){
                 arg[j].nintentos = n_intentos;
             }else{
                 arg[j].nintentos = (POW_LIMIT - j * n_intentos);
             }
 
             arg[j].found = &found;
-            sem_wait(&data->mutex);
+            sem_wait(&data->memory);
             arg[j].objetivo = &data->actual.target;
-            sem_post(&data->mutex);
+            sem_post(&data->memory);
             arg[j].resultado = &resultado;
 
             /*Llamada al miner en un hilo*/
@@ -211,7 +211,7 @@ void start_mining(int threads, Mem_Sys *data, mqd_t queue){
         }
 
         /*Recogida de todos los hilos*/
-        for (j = 0; j < N_HILOS; j++) {
+        for (j = 0; j < threads; j++) {
             error = pthread_join(hilos[j], NULL);
             if (error != 0) {
                 free(hilos);
@@ -220,6 +220,7 @@ void start_mining(int threads, Mem_Sys *data, mqd_t queue){
                 exit(EXIT_FAILURE);
             } 
         }
+
 
         free(hilos);
         free(arg);
@@ -232,12 +233,15 @@ void start_mining(int threads, Mem_Sys *data, mqd_t queue){
         else{
             if (sem_trywait(&data->ganador) == 0){
             ganador(data, resultado, queue);
-            }
-            while (usr2_signal == 0) {
-                esperar_milisegundos(50);
+            }else{
+                while (1) {
+                    esperar_milisegundos(50);
+                    if (usr2_signal == 1) {
+                        perdedor(data);
+                    }
+                }
             }
             
-            perdedor(data);
         }
 }
 
@@ -270,7 +274,7 @@ void ganador(Mem_Sys *data, int resultado, mqd_t queue){
     int votos_favor=0;
 
     /*Registra el resultado y manda la señal a todos los procesos minero*/
-    sem_wait(&data->mutex);
+    sem_wait(&data->memory);
     data->actual.result = resultado;
     data->actual.pid = getpid();
 
@@ -280,28 +284,30 @@ void ganador(Mem_Sys *data, int resultado, mqd_t queue){
             i++;
         }
     }
-    sem_post(&data->mutex);
+    sem_post(&data->memory);
 
     /*Cuenta los votos introducidos*/
     for ( i = 0; i < MAX_VOT; i++) {
 
         esperar_milisegundos(50);
-        sem_wait(&data->mutex);
+        sem_wait(&data->memory);
 
         if (data->cont_votos == (data->mineros -1)) {
             break;
         }
-        sem_post(&data->mutex);
+        sem_post(&data->memory);
     }
 
+    sem_post(&data->memory);
     /*Cuenta y guarda los resultados en el bloque*/
-    sem_wait(&data->mutex);
+    sem_wait(&data->memory);
+
     for ( i = 0; i < data->cont_votos; i++) {
         if (data->votos[i] == true) {
             votos_favor++;
         }
-        
     }
+
     data->actual.votos_tot = data->cont_votos;
     data->actual.votos_pos = votos_favor;
     if (votos_favor >= data->cont_votos/2) {
@@ -313,7 +319,7 @@ void ganador(Mem_Sys *data, int resultado, mqd_t queue){
         }
     }    
 
-    for ( j = 0, i = 0; i < data->mineros; ) {
+    for ( j = 0, i = 0; i < data->mineros; i++) {
         if (data->carteras[i].pid != 0) {
             data->actual.carteras[j].pid = data->carteras[i].pid;
             data->actual.carteras[j].monedas = data->carteras[i].monedas;
@@ -321,24 +327,27 @@ void ganador(Mem_Sys *data, int resultado, mqd_t queue){
         }
         
     }
-    sem_post(&data->mutex);
+    sem_post(&data->memory);
 
     mq_send(queue, (char*)&data->actual, sizeof(Bloque), 0);
 
-    sem_wait(&data->mutex);
+    
+
+    sem_wait(&data->memory);
     data->ultimo = data->actual;
     data->actual.target = data->ultimo.result;
     data->actual.id_bloque ++;
 
-    sem_post(&data->mutex);
+    sem_post(&data->memory);
     sem_post(&data->ganador);
+
     next_round(data);
 }
 
 
 void perdedor(Mem_Sys *data){
     srand(time(NULL)); 
-    sem_wait(&data->mutex);
+    sem_wait(&data->memory);
     if (rand() % 2) {
         data->votos[data->cont_votos]= true;
     }else {
@@ -346,14 +355,15 @@ void perdedor(Mem_Sys *data){
     }
     data->cont_votos++;
 
-    sem_post(&data->mutex);
+    sem_post(&data->memory);
 
     usr2_signal = 0;
 }
 
 void terminar(Mem_Sys *data, mqd_t queue){
     int i;
-    sem_wait(&data->mutex);
+    
+    sem_wait(&data->memory);
     for ( i = 0; i < MAX_PIDS; i++) {
         if (data->pids[i] == getpid()) {
             data->pids[i] = 0;
@@ -366,14 +376,16 @@ void terminar(Mem_Sys *data, mqd_t queue){
             data->carteras[i].monedas = 0;
         }
     }
+
     data->mineros--;
     if (data->mineros != 0) {
-        sem_post(&data->mutex);
+        sem_post(&data->memory);
         exit(EXIT_SUCCESS);
     }
-    sem_post(&data->mutex);
 
-    sem_destroy(&data->mutex);
+    sem_post(&data->memory);
+
+    sem_destroy(&data->memory);
     sem_destroy(&data->ganador);
 
     munmap(data, sizeof(Mem_Sys));

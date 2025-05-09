@@ -23,8 +23,7 @@ int main(int argc, char **argv) {
     int fd_shm;
     int i;
     Mem_Sys *data = NULL;
-    FILE *f;
-    int pid_monitor;
+    int monitor;
 
     if (argc != 3) {
         fprintf(stderr, "Invalid input\n");
@@ -36,24 +35,18 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Invalid input in argument 2\n");
         exit(EXIT_FAILURE);
     }
-
-
-    f = fopen("/tmp/monitor_pid", "r");
-    if (f== NULL) {
-        printf("El monitor no se ha iniciado");
-        exit(EXIT_SUCCESS);
+esperar_milisegundos(100);
+    monitor = shm_open(SHM_NAME2, O_RDWR, 0);
+    if (monitor == -1) {
+        perror("shm_open");
+        if (errno == ENOENT) {
+            fprintf(stderr, "El monitor no se ha iniciado\n");
+        }
+        exit(1);
     }
-    
+    close(monitor);
 
-    fscanf(f, "%d", &pid_monitor);
-    fclose(f);
-
-    if (kill(pid_monitor, 0) != 0) {
-        printf("El monitor no se ha iniciado");
-        exit(EXIT_SUCCESS);
-    } 
-
-
+    shm_unlink(SHM_NAME);
     fd_shm = shm_open(SHM_NAME, O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
   
     if (fd_shm == -1) {
@@ -78,6 +71,7 @@ int main(int argc, char **argv) {
       }
     }
     else {
+        
       if (ftruncate(fd_shm, sizeof(Mem_Sys)) == -1) {
         perror("ftruncate");
         shm_unlink(SHM_NAME);
@@ -95,7 +89,7 @@ int main(int argc, char **argv) {
       valores_defecto(data);
 
     }
-    sem_wait(&data->mutex);
+    sem_wait(&data->memory);
     if (data->mineros == MAX_PIDS) {
         printf("El sistema está lleno");
         exit(EXIT_SUCCESS);
@@ -113,7 +107,7 @@ int main(int argc, char **argv) {
         
     }
     data->mineros++;
-    sem_post(&data->mutex);
+    sem_post(&data->memory);
     
     
     minero(n_seconds, n_threads, data);
@@ -138,7 +132,7 @@ void valores_defecto(Mem_Sys *data){
         perror("sem_init ganador");
         exit(EXIT_FAILURE);
     }
-    if (sem_init(&data->mutex, 1, 1) == -1) {
+    if (sem_init(&data->memory, 1, 1) == -1) {
         perror("sem_init full");
         exit(EXIT_FAILURE);
     }

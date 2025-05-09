@@ -36,8 +36,11 @@ int monitor(int fd_shm) {
         exit(EXIT_FAILURE);
     }
 
-    while (data->in != 0 || data->out != 0) {
+    esperar_milisegundos(100);
+    while (data->in == 0 ) {
+        esperar_milisegundos(100);
     }
+
     
     while (1) {
         /**
@@ -52,19 +55,21 @@ int monitor(int fd_shm) {
             fprintf(stdout, "Winner: %d\n", data->bloques[data->out%BUFFER_SIZE].pid);
             fprintf(stdout, "Target: %ld\n", data->bloques[data->out%BUFFER_SIZE].target);
             if (data->correct[data->out%BUFFER_SIZE] == true) {
-                fprintf(stdout, "Solution: %ld\n (validated)", data->bloques[data->out%BUFFER_SIZE].result);
+                fprintf(stdout, "Solution: %ld (validated)\n", data->bloques[data->out%BUFFER_SIZE].result);
             } else {
-                fprintf(stdout, "Solution: %ld\n (rejected)", data->bloques[data->out%BUFFER_SIZE].result);
+                fprintf(stdout, "Solution: %ld (rejected)\n", data->bloques[data->out%BUFFER_SIZE].result);
             }
             fprintf(stdout, "Votes: %d/%d\n", data->bloques[data->out%BUFFER_SIZE].votos_pos, data->bloques[data->out%BUFFER_SIZE].votos_tot);
             fprintf(stdout, "Wallets:");
-            for ( i = 0; i < data->bloques[data->out%BUFFER_SIZE].votos_tot; i++) {
+
+            for ( i = 0; i < data->bloques[data->out%BUFFER_SIZE].votos_tot+1; i++) {
                 fprintf(stdout, " %d:%d", data->bloques[data->out%BUFFER_SIZE].carteras[i].pid, data->bloques[data->out%BUFFER_SIZE].carteras[i].monedas);
             }
-
+            printf("\n\n");
             if (data->bloques[data->out%BUFFER_SIZE].finish || data->finish[data->out%BUFFER_SIZE]) {
                 flag = true;
             }
+            fflush(stdout);
         }
 
         sem_post(&data->mutex);

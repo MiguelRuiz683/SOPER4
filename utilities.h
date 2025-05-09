@@ -41,7 +41,7 @@ typedef struct {
   int votos_tot;                      /*Votos totales*/
   int votos_pos;                      /*Votos positivos*/
   CarteraMinero carteras[MAX_PIDS];   /*Las carteras de los mineros que participaron en la ronda*/
-  bool finish;                      /*Marca si el bloque es el último*/
+  bool finish;                        /*Marca si el bloque es el último*/
 } Bloque;
 
 
@@ -57,7 +57,7 @@ typedef struct {
   Bloque ultimo;                      /*Último bloque resuelto*/
   Bloque actual;                      /*Bloque actual en resolución*/
   sem_t ganador;                      /*Semáforo de vacío de producto consumidor*/
-  sem_t mutex;                        /*Semáforo de lleno de producto consumidor*/
+  sem_t memory;                       /*Semáforo de lleno de producto consumidor*/
   bool listo;                         /*Marca si el sistema está listo*/
   pid_t primero;                      /*Pid del priemr minero que participó en la minería*/
 } Mem_Sys;
