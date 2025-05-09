@@ -17,11 +17,11 @@
 
 
 void valores_defecto(Mem_Sys *data);
+int registrar_minero(Mem_Sys *data);
 
 int main(int argc, char **argv) {
     int n_seconds, n_threads;
     int fd_shm;
-    int i;
     Mem_Sys *data = NULL;
     int monitor;
     if (argc != 3) {
@@ -45,72 +45,58 @@ int main(int argc, char **argv) {
         exit(1);
     }
     close(monitor);
-    fd_shm = shm_open(SHM_NAME, O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
-  
 
-    if (fd_shm == -1) {
-      if (errno == EEXIST) {
+    fd_shm = shm_open(SHM_NAME, O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
+
+    if (fd_shm == -1 && errno == EEXIST) {
         fd_shm = shm_open(SHM_NAME, O_RDWR, 0);
         if (fd_shm == -1) {
-          perror("Error opening the shared memory segment");
-          exit(EXIT_FAILURE);
+            perror("Error al abrir memoria compartida");
+            exit(EXIT_FAILURE);
         }
-        else {
         
-          data = mmap(NULL, sizeof(Mem_Sys), PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0);
-          close(fd_shm);
-          while (!data->listo) {
-              esperar_milisegundos(100);
-          }
+        data = mmap(NULL, sizeof(Mem_Sys), PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0);
+        close(fd_shm);
+        
+        if (data == MAP_FAILED) {
+            perror("Error en mmap");
+            exit(EXIT_FAILURE);
         }
-      }
-      else {
-        perror("Error creating the shared memory segment\n");
+
+        while (!data->listo) {
+            esperar_milisegundos(100);
+        }
+    } 
+    else if (fd_shm == -1) {
+        perror("Error al crear memoria compartida");
         exit(EXIT_FAILURE);
-      }
     }
     else {
-        
-      if (ftruncate(fd_shm, sizeof(Mem_Sys)) == -1) {
-        perror("ftruncate");
-        shm_unlink(SHM_NAME);
-        exit(EXIT_FAILURE);
-      }
+        if (ftruncate(fd_shm, sizeof(Mem_Sys)) == -1) {
+            perror("Error en ftruncate");
+            shm_unlink(SHM_NAME);
+            exit(EXIT_FAILURE);
+        }
   
-      data = mmap(NULL, sizeof(Mem_Sys), PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0);
-      close(fd_shm);
-      if (data == MAP_FAILED) {
-          perror("mmap");
-          shm_unlink(SHM_NAME);
-          exit(EXIT_FAILURE);
-      }
-      memset(data, 0, sizeof(Mem_Sys));
-      valores_defecto(data);
-
-    }
-    sem_wait(&data->memory);
-    if (data->mineros == MAX_PIDS) {
-        printf("El sistema está lleno");
-        exit(EXIT_SUCCESS);
-    }
-    for ( i = 0; i <= data->mineros; i++) {
-        if (data->pids[i] == 0) {
-            data->pids[i] = getpid();
-            break;
-        }
-    }
-    for ( i = 0; i <= data->mineros; i++) {
-        if (data->carteras[i].pid == 0) {
-            data->carteras[i].pid = getpid();
+        data = mmap(NULL, sizeof(Mem_Sys), PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0);
+        close(fd_shm);
+        
+        if (data == MAP_FAILED) {
+            perror("Error en mmap");
+            shm_unlink(SHM_NAME);
+            exit(EXIT_FAILURE);
         }
         
+        memset(data, 0, sizeof(Mem_Sys));
+        valores_defecto(data);
     }
-    data->mineros++;
-    sem_post(&data->memory);
-    
-    
-    minero(n_seconds, n_threads, data);
 
+    if (!registrar_minero(data)) {
+        fprintf(stderr, "El sistema está lleno. Inténtelo más tarde.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    minero(n_seconds, n_threads, data);
 
     exit(EXIT_SUCCESS);
 }
@@ -132,9 +118,60 @@ void valores_defecto(Mem_Sys *data){
         exit(EXIT_FAILURE);
     }
     if (sem_init(&data->memory, 1, 1) == -1) {
-        perror("sem_init full");
+        perror("sem_init memory");
+        exit(EXIT_FAILURE);
+    }
+    if (sem_init(&data->iniciar, 1, 1) == -1) {
+        perror("sem_init iniciar");
         exit(EXIT_FAILURE);
     }
     data->listo = true;
 
+}
+
+int registrar_minero(Mem_Sys *data) {
+    int slot_libre = -1;
+    int cartera_registrada = 0;
+    int i;
+
+    sem_wait(&data->iniciar);
+    
+
+
+    for ( i = 0; i < MAX_PIDS; i++) {
+        if (data->pids[i] == 0) {
+            slot_libre = i;
+            break;
+        }
+    }
+
+    if (slot_libre == -1) {
+        sem_post(&data->iniciar);
+        return 0; 
+    }
+
+    data->pids[slot_libre] = getpid();
+    
+    for ( i = 0; i < MAX_PIDS; i++) {
+        if (data->carteras[i].pid == getpid()) {
+            cartera_registrada = 1;
+            break;
+        }
+    }
+    
+    if (!cartera_registrada) {
+        for ( i = 0; i < MAX_PIDS; i++) {
+            if (data->carteras[i].pid == 0) {
+                data->carteras[i].pid = getpid();
+                data->carteras[i].monedas = 0;
+                break;
+            }
+        }
+    }
+
+    data->mineros++;
+    printf("Nuevo minero registrado. PID: %d. Total mineros: %d\n", getpid(), data->mineros);
+    
+    sem_post(&data->iniciar);
+    return 1;
 }

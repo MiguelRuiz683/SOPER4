@@ -52,25 +52,31 @@ void handler(int sig) {
     }
     else if (sig == SIGUSR2) {
         usr2_signal = 1;
-        printf("Señal 2\n");
-        fflush(stdout);
+        
+        
     }
 }
 
 /*Código para la siguiente ronda*/
-void next_round(Mem_Sys *data){
+void next_round(Mem_Sys *data) {
     int i;
+    int j;
+    sem_wait(&data->iniciar);
+    sem_wait(&data->memory);
     
-    /*Enviar SIGUSR1 a los procesos mienro*/
-    for (i = 0; i < (data->mineros -1) && i < MAX_PIDS; ){
-        if (data->pids[i] != getgid() && data->pids[i] != 0)
-        {
+    data->cont_votos = 0;
+    memset(data->votos, 0, sizeof(data->votos));
+    
+    for ( i = 0, j=0; i < MAX_PIDS && j < (data->mineros - 1); i++) {
+        if (data->pids[i] != 0 && data->pids[i] != getpid()) {
             kill(data->pids[i], SIGUSR1);
-            i++;
+            j++;
         }
     }
+    
+    sem_post(&data->memory);
+    
     kill(getpid(), SIGUSR1);
-
 }
 /**
  * @brief Función encargada de buscar el resultado de la función hash
@@ -89,12 +95,13 @@ void perdedor(Mem_Sys *data);
 
 void terminar(Mem_Sys *data, mqd_t queue);
 
+void abandonar_sistema(Mem_Sys *data);
+
 
 int minero(int seconds, int threads, Mem_Sys *data) {
     struct mq_attr attributes;
     mqd_t queue;
     struct sigaction act;
-
 
     /*Configuración de sigaction*/
     act.sa_handler = handler;
@@ -132,11 +139,13 @@ int minero(int seconds, int threads, Mem_Sys *data) {
     attributes.mq_msgsize = sizeof(Bloque);
     queue = mq_open(MQ_NAME, O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR, &attributes);
 
+    sem_post(&data->iniciar);
     if (data->primero == getpid()) {
         esperar_milisegundos(100);
         next_round(data);
     }
     
+
     while (1) {
         esperar_milisegundos(100);
         if (usr1_signal == 1) {
@@ -153,97 +162,93 @@ int minero(int seconds, int threads, Mem_Sys *data) {
     exit(EXIT_SUCCESS);
 }
 
-void start_mining(int threads, Mem_Sys *data, mqd_t queue){
+void start_mining(int threads, Mem_Sys *data, mqd_t queue) {
     int n_intentos;
     bool found;
-    Args *arg;              /*Estructuras de argumentos que se van a pasar por los hilos*/
-    pthread_t *hilos;       /*Hilos que se vana usar*/
-    int j;
-    int error;
-    long resultado=0;
+    Args *arg;
+    pthread_t *hilos;
+    int j, error;
+    long resultado = 0;
+    int timeout = 0;
 
-    usr1_signal = 0;
+    usr1_signal = 0;  
 
-    /*Reserva de memoria para los hilos*/
+    /* Reserva de memoria para hilos y argumentos */
     hilos = malloc(threads * sizeof(pthread_t));
     if (!hilos) {
         perror("Error reservando memoria para hilos");
         exit(EXIT_FAILURE);
     }
 
-    /*Reserva de memoria para los argumentos*/
     arg = malloc(threads * sizeof(Args));
     if (!arg) {
         perror("Error reservando memoria para argumentos");
         free(hilos);
         exit(EXIT_FAILURE);
     }
-    /*Se divide el espacio de búsqueda*/
+
+    /* Dividir espacio de búsqueda */
     n_intentos = POW_LIMIT / threads;
+    found = false;
+
+    /* Configurar y lanzar hilos */
+    for (j = 0; j < threads; j++) {
+        arg[j].ini = n_intentos * j;
+        arg[j].nintentos = (j != threads - 1) ? n_intentos : (POW_LIMIT - j * n_intentos);
+        arg[j].found = &found;
         
-        found = false;
+        sem_wait(&data->memory);
+        arg[j].objetivo = &data->actual.target;
+        sem_post(&data->memory);
+        
+        arg[j].resultado = &resultado;
 
-        /*Rellenamos la información de los argumentos que se pasarán al miner*/
-        for (j = 0; j < threads; j++) {
-            arg[j].ini = n_intentos * j;
-
-            if (j != threads - 1){
-                arg[j].nintentos = n_intentos;
-            }else{
-                arg[j].nintentos = (POW_LIMIT - j * n_intentos);
-            }
-
-            arg[j].found = &found;
-            sem_wait(&data->memory);
-            arg[j].objetivo = &data->actual.target;
-            sem_post(&data->memory);
-            arg[j].resultado = &resultado;
-
-            /*Llamada al miner en un hilo*/
-            error = pthread_create(&hilos[j], NULL, miner, &arg[j]);
-            if (error != 0) {
-                free(hilos);
-                free(arg);
-                fprintf(stderr, "pthread_create: %s\n", strerror(error));
-                exit(EXIT_FAILURE);
-            }
+        if ((error = pthread_create(&hilos[j], NULL, miner, &arg[j]))) {
+            fprintf(stderr, "pthread_create: %s\n", strerror(error));
+            free(hilos);
+            free(arg);
+            exit(EXIT_FAILURE);
         }
+    }
 
-        /*Recogida de todos los hilos*/
-        for (j = 0; j < threads; j++) {
-            error = pthread_join(hilos[j], NULL);
-            if (error != 0) {
-                free(hilos);
-                free(arg);
-                fprintf(stderr, "pthread_join: %s\n", strerror(error));
-                exit(EXIT_FAILURE);
-            } 
+    /* Esperar a que terminen los hilos */
+    for (j = 0; j < threads; j++) {
+        if ((error = pthread_join(hilos[j], NULL))) {
+            fprintf(stderr, "pthread_join: %s\n", strerror(error));
+            free(hilos);
+            free(arg);
+            exit(EXIT_FAILURE);
         }
+    }
 
+    free(hilos);
+    free(arg);
 
-        free(hilos);
-        free(arg);
-        if (alarm_signal == 1) {
+    /* Manejo del resultado */
+    if (alarm_signal == 1) {
+        terminar(data, queue);
+    }
+    else if (usr2_signal == 1) {
+        perdedor(data);
+    }
+    else {
+        if (sem_trywait(&data->ganador) == 0) {
+            ganador(data, resultado, queue);
+        } else {
+            /* Espera activa mejorada para USR2 */
+            
+            while (timeout < 40) {  
+                if (usr2_signal == 1) {
+                    perdedor(data);
+                    return;
+                }
+                esperar_milisegundos(50);
+                timeout++;
+            }
             terminar(data, queue);
         }
-        else if (usr2_signal == 1) {
-            perdedor(data);
-        }
-        else{
-            if (sem_trywait(&data->ganador) == 0){
-            ganador(data, resultado, queue);
-            }else{
-                while (1) {
-                    esperar_milisegundos(50);
-                    if (usr2_signal == 1) {
-                        perdedor(data);
-                    }
-                }
-            }
-            
-        }
+    }
 }
-
 
 
 void *miner(void *args) {
@@ -271,33 +276,32 @@ void *miner(void *args) {
 void ganador(Mem_Sys *data, int resultado, mqd_t queue){
     int i, j;
     int votos_favor=0;
+    int timeout = 0;
 
     /*Registra el resultado y manda la señal a todos los procesos minero*/
     sem_wait(&data->memory);
     data->actual.result = resultado;
     data->actual.pid = getpid();
 
-    for (i = 0; i < (data->mineros -1) && i < MAX_PIDS ; ){
-        if (data->pids[i] != getgid() && data->pids[i] != 0) {
+    for (i = 0, j=0; i < MAX_PIDS && j < (data->mineros - 1); i++) {
+        if (data->pids[i] != 0 && data->pids[i] != getpid()) {
             kill(data->pids[i], SIGUSR2);
-            i++;
+            j++;
         }
     }
 
-    printf("N miners: %d\n", data->mineros);
-    fflush(stdout);
     sem_post(&data->memory);
 
-    /*Cuenta los votos introducidos*/
-    for ( i = 0; i < MAX_VOT; i++) {
 
-        esperar_milisegundos(50);
-        sem_wait(&data->memory);
+    while ( timeout < 20) {
+        sem_post(&data->memory);
 
         if (data->cont_votos == (data->mineros -1)) {
             break;
         }
-        sem_post(&data->memory);
+        sem_wait(&data->memory);
+        esperar_milisegundos(100);
+        timeout++;
     }
 
     sem_post(&data->memory);
@@ -342,65 +346,71 @@ void ganador(Mem_Sys *data, int resultado, mqd_t queue){
 
     sem_post(&data->memory);
     sem_post(&data->ganador);
-
+    sem_post(&data->iniciar);
+    esperar_milisegundos(100);
     next_round(data);
 }
 
 
 void perdedor(Mem_Sys *data){
     
-    printf("Perdedor\n");
-    fflush(stdout);
 
-
-    srand(time(NULL)); 
     sem_wait(&data->memory);
-    if (rand() % 2) {
-        data->votos[data->cont_votos]= true;
-    }else {
-        data->votos[data->cont_votos]= false;
-    }
+
+    srand(time(NULL) ^ getpid());
+    data->votos[data->cont_votos] = (rand() % 2);
     data->cont_votos++;
 
     sem_post(&data->memory);
 
     usr2_signal = 0;
+    usr1_signal = 0;
+
+      while(usr1_signal == 0 && alarm_signal == 0) {
+        esperar_milisegundos(100);
+    }
 }
 
-void terminar(Mem_Sys *data, mqd_t queue){
-    int i;
+void terminar(Mem_Sys *data, mqd_t queue) {
+    abandonar_sistema(data);
     
-    sem_wait(&data->memory);
+    if (data->mineros == 0) {
+        if (queue != (mqd_t)-1) {
+            data->actual.finish = true;
+            mq_send(queue, (char*)&data->actual, sizeof(Bloque), 0);
+        }
+        
+        sem_destroy(&data->memory);
+        sem_destroy(&data->ganador);
+        sem_destroy(&data->iniciar);
+        
+        munmap(data, sizeof(Mem_Sys));
+        mq_close(queue);
+        mq_unlink(MQ_NAME);
+        shm_unlink(SHM_NAME);
+    }
+    
+    exit(EXIT_SUCCESS);
+}
+void abandonar_sistema(Mem_Sys *data) {
+    int i;
+    sem_wait(&data->iniciar);
+    
     for ( i = 0; i < MAX_PIDS; i++) {
         if (data->pids[i] == getpid()) {
             data->pids[i] = 0;
-        }
-    }
-
-    for ( i = 0; i < MAX_PIDS; i++) {
-        if (data->carteras[i].pid == getpid()) {
-            data->carteras[i].pid = 0;
-            data->carteras[i].monedas = 0;
+            break;
         }
     }
 
     data->mineros--;
-    if (data->mineros != 0) {
-        sem_post(&data->memory);
-        exit(EXIT_SUCCESS);
-    }
-
-    sem_post(&data->memory);
-
-    sem_destroy(&data->memory);
-    sem_destroy(&data->ganador);
-
-    data->actual.finish= true;
-    mq_send(queue, (char*)&data->actual, sizeof(Bloque), 0);
-    munmap(data, sizeof(Mem_Sys));
-    mq_close(queue);
     
-    mq_unlink(MQ_NAME);
-    shm_unlink(SHM_NAME);
-    exit(EXIT_SUCCESS);
+    printf("Mineros restantes: %d\n", data->mineros);
+    
+    if (data->mineros == 0) {
+        printf("Último minero abandonando el sistema\n");
+        data->actual.finish = true;
+    }
+    
+    sem_post(&data->iniciar);
 }

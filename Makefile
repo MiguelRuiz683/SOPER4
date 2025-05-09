@@ -75,11 +75,7 @@ example1:
 	@echo "Todos los procesos han terminado"
 
 example2:
-	./monitor 0 & \
-	sleep 2; \
-	./monitor 500 & \
-	sleep 2; \
-	./miner 8 100& \
+	./monitor & ./miner 4 2 & (sleep 1;./miner 6 10)
 	wait
 	@echo "Todos los procesos han terminado"
 
