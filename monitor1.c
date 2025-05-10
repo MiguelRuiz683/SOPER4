@@ -52,9 +52,9 @@ int monitor(int fd_shm) {
 
 
         if (data->in > data->out) {
-            if (data->bloques[data->out%BUFFER_SIZE].finish == true) {
+            if (data->bloques[data->out%BUFFER_SIZE].finish == true || data->finish[data->out%BUFFER_SIZE] == true) {
                 flag = true;
-            }else{
+            } else{
             
                 fprintf(stdout, "Id: %d\n", data->bloques[data->out%BUFFER_SIZE].id_bloque);
                 fprintf(stdout, "Winner: %d\n", data->bloques[data->out%BUFFER_SIZE].pid);
@@ -75,18 +75,20 @@ int monitor(int fd_shm) {
             }
         }
 
+        data->out++;
+
         sem_post(&data->mutex);
         sem_post(&data->empty);
 
         if (flag) {            
             munmap(data, sizeof(data_message));
+            close(fd_shm);
             shm_unlink(SHM_NAME2);
+            shm_unlink(SHM_NAME);
             sem_destroy(&data->fill);
             sem_destroy(&data->empty);
             sem_destroy(&data->mutex);
             return EXIT_SUCCESS;
         }
-        
-        data->out++;
     }
 }

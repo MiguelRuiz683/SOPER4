@@ -40,10 +40,6 @@ int main(int argc, char **argv) {
     exit(EXIT_FAILURE);
   }
 
-
-  shm_unlink(SHM_NAME2);
-  mq_unlink(MQ_NAME);
-  
   fd_shm = shm_open(SHM_NAME2, O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
   if (fd_shm == -1) {
     perror("Error al crear el fichero de memoria compartida");
@@ -66,5 +62,6 @@ int main(int argc, char **argv) {
     monitor(fd_shm);
   }
   wait(NULL);
+  
   exit(EXIT_SUCCESS);
 }

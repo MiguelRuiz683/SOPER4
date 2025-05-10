@@ -80,6 +80,10 @@ int comprobador(int fd_shm) {
         if (mq_receive(queue, (char*) &bloque, sizeof(Bloque), &prior) == -1) {
             perror("mq_receive");
             exit(EXIT_FAILURE);
+        }    
+
+        if (finish == false) {
+            comprueba(bloque, data, &finish);
         }
 
         if (bloque.finish == true) {
@@ -89,14 +93,11 @@ int comprobador(int fd_shm) {
             sem_post(&data->mutex);
             sem_post(&data->fill);
             munmap(data,sizeof(data_message));
+            close(fd_shm);
             mq_close(queue);
+            mq_unlink(MQ_NAME);
             break;
-        }      
-
-        if (finish == false) {
-            comprueba(bloque, data, &finish);
         }
- 
     }
 
     return EXIT_SUCCESS;

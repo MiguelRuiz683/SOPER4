@@ -383,13 +383,15 @@ void terminar(Mem_Sys *data, mqd_t queue) {
         sem_destroy(&data->memory);
         sem_destroy(&data->ganador);
         sem_destroy(&data->iniciar);
-        
-        munmap(data, sizeof(Mem_Sys));
-        mq_close(queue);
-        mq_unlink(MQ_NAME);
-        shm_unlink(SHM_NAME);
     }
     
+    while (data->mineros > 0) {
+        esperar_milisegundos(100);
+    }
+
+    munmap(data, sizeof(Mem_Sys));
+    mq_close(queue);
+
     exit(EXIT_SUCCESS);
 }
 void abandonar_sistema(Mem_Sys *data) {
@@ -405,10 +407,7 @@ void abandonar_sistema(Mem_Sys *data) {
 
     data->mineros--;
     
-    printf("Mineros restantes: %d\n", data->mineros);
-    
     if (data->mineros == 0) {
-        printf("Último minero abandonando el sistema\n");
         data->actual.finish = true;
     }
     

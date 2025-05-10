@@ -170,7 +170,6 @@ int registrar_minero(Mem_Sys *data) {
     }
 
     data->mineros++;
-    printf("Nuevo minero registrado. PID: %d. Total mineros: %d\n", getpid(), data->mineros);
     
     sem_post(&data->iniciar);
     return 1;
