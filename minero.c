@@ -462,9 +462,9 @@ void terminar(Mem_Sys *data, mqd_t queue, int *fd) {
         sem_destroy(&data->ganador);
         sem_destroy(&data->iniciar);
     }
-
+/*
     while(data->mineros > 0) {
-    }
+    }*/
 
     munmap(data, sizeof(Mem_Sys));
     mq_close(queue);

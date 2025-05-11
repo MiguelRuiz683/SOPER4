@@ -99,3 +99,11 @@ example3:
 	wait
 	@echo "Todos los procesos han terminado"
 
+example4:
+	./monitor & \
+	./miner 2 1 & \
+	./miner 1 3 & \
+	./miner 20 23 & \
+	./miner 10 5 & \
+	wait
+	@echo "Todos los procesos han terminado"
