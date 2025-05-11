@@ -29,7 +29,6 @@ int main(int argc, char **argv) {
     int fd[2];
     int pipe_status;
     pid_t registrador_pid;
-    int status1, status2;
 
     if (argc != 3) {
         fprintf(stderr, "Invalid input\n");
@@ -130,13 +129,7 @@ int main(int argc, char **argv) {
         }
     } else {
         close(fd[0]);
-        status1 = minero(n_seconds, n_threads, data, fd);
-        close(fd[1]);
-        wait(&status2);
-        fprintf(stdout,"Registrador terminó con estado %d\n", WEXITSTATUS(status2));
-        if (status1 == EXIT_FAILURE) {
-            exit(EXIT_FAILURE);
-        }
+        minero(n_seconds, n_threads, data, fd);
     }
 
     exit(EXIT_SUCCESS);

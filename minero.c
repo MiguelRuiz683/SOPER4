@@ -94,7 +94,7 @@ void ganador(Mem_Sys *data, int resultado, mqd_t queue);
 
 void perdedor(Mem_Sys *data);
 
-void terminar(Mem_Sys *data, mqd_t queue);
+void terminar(Mem_Sys *data, mqd_t queue,int  *fd);
 
 void abandonar_sistema(Mem_Sys *data);
 
@@ -135,25 +135,25 @@ int minero(int seconds, int threads, Mem_Sys *data, int *fd) {
     }
     
     if (sigaction(SIGUSR1, &act, NULL) < 0) {
-        terminar(data, queue);
+        terminar(data, queue, fd);
         perror("sigaction");
         return EXIT_FAILURE;
     }
     
     if (sigaction(SIGALRM, &act, NULL) < 0) {
-        terminar(data, queue);
+        terminar(data, queue, fd);
         perror("sigaction");
         return EXIT_FAILURE;
     }
 
     if (sigaction(SIGINT, &act, NULL) < 0) {
-        terminar(data, queue);
+        terminar(data, queue, fd);
         perror("sigaction");
         return EXIT_FAILURE;
     }
 
     if (sigaction(SIGUSR2, &act, NULL) < 0) {
-        terminar(data, queue);
+        terminar(data, queue, fd);
         perror("sigaction");
         return EXIT_FAILURE;
     }
@@ -161,7 +161,7 @@ int minero(int seconds, int threads, Mem_Sys *data, int *fd) {
     /*Activar alarma*/
     if (alarm(seconds)) {
         fprintf(stderr, "Fallo al configurar la alarma\n");
-        terminar(data, queue);
+        terminar(data, queue, fd);
         return EXIT_FAILURE;
     }
 
@@ -175,7 +175,7 @@ int minero(int seconds, int threads, Mem_Sys *data, int *fd) {
         esperar_milisegundos(100);
         if (usr1_signal == 1) {
             if (start_mining(threads, data, queue, fd) == EXIT_FAILURE) {
-                terminar(data, queue);
+                terminar(data, queue, fd);
                 return EXIT_FAILURE;
             }
         }
@@ -183,7 +183,7 @@ int minero(int seconds, int threads, Mem_Sys *data, int *fd) {
 
         usr2_signal = 0;
         if (alarm_signal == 1) {
-            terminar(data, queue);
+            terminar(data, queue, fd);
             break;
         }
     }
@@ -256,7 +256,7 @@ int start_mining(int threads, Mem_Sys *data, mqd_t queue, int *fd) {
 
     /* Manejo del resultado */
     if (alarm_signal == 1) {
-        terminar(data, queue);
+        terminar(data, queue, fd);
         return EXIT_SUCCESS;
     }
     else if (usr2_signal == 1) {
@@ -276,7 +276,7 @@ int start_mining(int threads, Mem_Sys *data, mqd_t queue, int *fd) {
                 esperar_milisegundos(50);
                 timeout++;
             }
-            terminar(data, queue);
+            terminar(data, queue, fd);
             return EXIT_SUCCESS;
         }
     }
@@ -285,7 +285,7 @@ int start_mining(int threads, Mem_Sys *data, mqd_t queue, int *fd) {
 
     if (nbytes == -1) {
         perror("Error al escribir en el pipe");
-        terminar(data, queue);
+        terminar(data, queue, fd);
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
@@ -417,7 +417,8 @@ void perdedor(Mem_Sys *data){
     }
 }
 
-void terminar(Mem_Sys *data, mqd_t queue) {
+void terminar(Mem_Sys *data, mqd_t queue, int *fd) {
+    int status;
     abandonar_sistema(data);
     
     if (data->mineros == 0) {
@@ -430,12 +431,17 @@ void terminar(Mem_Sys *data, mqd_t queue) {
         sem_destroy(&data->ganador);
         sem_destroy(&data->iniciar);
     }
-    
 
+    while(data->mineros > 0) {
+    }
 
     munmap(data, sizeof(Mem_Sys));
     mq_close(queue);
 
+    close(fd[1]);
+    wait(&status);
+    fprintf(stdout,"Registrador terminó con estado %d\n", WEXITSTATUS(status));
+    fflush(stdout);
     exit(EXIT_SUCCESS);
 }
 
