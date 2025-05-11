@@ -17,10 +17,20 @@
 #include "utilities.h"
 #include "registrador.h"
 
-
+/**
+ * Establece los valores por defecto de la memoria compartida
+ */
 void valores_defecto(Mem_Sys *data);
+
+/**
+ * Registra a un minero en el sistema
+ */
 int registrar_minero(Mem_Sys *data);
 
+/**
+ * Main del proceso miner, se encarga de crear la memoria compartida, llamar al registrador,
+ * establecer los valores por defecto de la memoria compartida y llamar a minero.
+ */
 int main(int argc, char **argv) {
     int n_seconds, n_threads;
     int fd_shm;
@@ -130,13 +140,8 @@ int main(int argc, char **argv) {
         }
     } else {
         close(fd[0]);
-        status1 = minero(n_seconds, n_threads, data, fd);
-        close(fd[1]);
-        wait(&status2);
-        fprintf(stdout,"Registrador terminó con estado %d\n", WEXITSTATUS(status2));
-        if (status1 == EXIT_FAILURE) {
-            exit(EXIT_FAILURE);
-        }
+        minero(n_seconds, n_threads, data, fd);
+
     }
 
     exit(EXIT_SUCCESS);

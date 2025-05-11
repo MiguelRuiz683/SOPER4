@@ -11,6 +11,7 @@
 /**
  * @brief Función encargada de la comprobación del resultado obtenido por minero
  * 
+ * @param fd_shm descriptor de la memoria de datos compartida
  */
 int monitor(int fd_shm);
 

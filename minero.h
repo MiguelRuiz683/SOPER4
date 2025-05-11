@@ -15,6 +15,6 @@
  * @param seconds tiempo que el minero estará activo
  * @param threads hilos que empleará para minar
  */
-int minero(int seconds, int threads, Mem_Sys *data, int *fd);
+void minero(int seconds, int threads, Mem_Sys *data, int *fd);
 
 #endif

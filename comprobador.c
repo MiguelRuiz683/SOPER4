@@ -23,6 +23,9 @@
 
 static volatile sig_atomic_t int_signal = 0;
 
+/**
+ * Handler que se ejecuta al llegar la señal SIGINT
+ */
 void handler(int sig) {
     if (sig == SIGINT) {
         int_signal = 1;
