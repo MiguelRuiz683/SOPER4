@@ -103,7 +103,8 @@ int minero(int seconds, int threads, Mem_Sys *data, int *fd) {
     struct mq_attr attributes;
     mqd_t queue;
     struct sigaction act;
-    int nbytes;
+
+    srand(time(NULL) ^ getpid());
 
     /*Configuración de sigaction*/
     act.sa_handler = handler;
@@ -179,12 +180,6 @@ int minero(int seconds, int threads, Mem_Sys *data, int *fd) {
             }
         }
 
-        nbytes = write(fd[1], (char*)&data->actual, sizeof(Bloque));
-        if (nbytes == -1) {
-            perror("Error al escribir en el pipe");
-            terminar(data, queue);
-            return EXIT_FAILURE;
-        }
 
         usr2_signal = 0;
         if (alarm_signal == 1) {
@@ -204,6 +199,7 @@ int start_mining(int threads, Mem_Sys *data, mqd_t queue, int *fd) {
     int j, error;
     long resultado = 0;
     int timeout = 0;
+    int nbytes;
 
     usr1_signal = 0;  
 
@@ -285,6 +281,13 @@ int start_mining(int threads, Mem_Sys *data, mqd_t queue, int *fd) {
         }
     }
 
+    nbytes= write(fd[1], (char*)&data->actual, sizeof(Bloque));
+
+    if (nbytes == -1) {
+        perror("Error al escribir en el pipe");
+        terminar(data, queue);
+        return EXIT_FAILURE;
+    }
     return EXIT_SUCCESS;
 }
 
@@ -332,7 +335,6 @@ void ganador(Mem_Sys *data, int resultado, mqd_t queue){
 
     sem_wait(&data->memory);
 
-    srand(time(NULL) ^ getpid());
     data->votos[data->cont_votos] = (rand() % 2);
     data->cont_votos++;
 
@@ -361,7 +363,7 @@ void ganador(Mem_Sys *data, int resultado, mqd_t queue){
 
     data->actual.votos_tot = data->cont_votos;
     data->actual.votos_pos = votos_favor;
-    if (votos_favor >= data->cont_votos/2) {
+    if (votos_favor *2 >= data->cont_votos) {
         for ( i = 0; i < MAX_PIDS; i++) {
             if (data->carteras[i].pid == getpid()) {
                 data->carteras[i].monedas += 1;
@@ -402,7 +404,6 @@ void perdedor(Mem_Sys *data){
 
     sem_wait(&data->memory);
 
-    srand(time(NULL) ^ getpid());
     data->votos[data->cont_votos] = (rand() % 2);
     data->cont_votos++;
 
@@ -430,13 +431,15 @@ void terminar(Mem_Sys *data, mqd_t queue) {
         sem_destroy(&data->iniciar);
     }
     
-    while (data->mineros > 0) {
-        esperar_milisegundos(100);
-    }
+
 
     munmap(data, sizeof(Mem_Sys));
     mq_close(queue);
+
+    exit(EXIT_SUCCESS);
 }
+
+
 void abandonar_sistema(Mem_Sys *data) {
     int i;
     sem_wait(&data->iniciar);

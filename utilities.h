@@ -17,9 +17,9 @@
 #define N_MSG 7
 #define MAX_PIDS 100
 #define MAX_VOT 100
-#define SHM_NAME "/shm_data"
-#define SHM_NAME2 "/shm_monitor"
-#define MQ_NAME "/mq_data"
+#define SHM_NAME "/shm_data2"
+#define SHM_NAME2 "/shm_monitor2"
+#define MQ_NAME "/mq_data2"
  
  /**
   * @brief Función encargada de esperar ciertos milisegundos
