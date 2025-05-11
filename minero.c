@@ -101,7 +101,7 @@ void *miner(void *args);
  * @param fd fichero de datos donde se guardará los registros de minado
  * 
  */
-void start_mining(int threads, Mem_Sys *data, mqd_t queue, int *fd);
+int start_mining(int threads, Mem_Sys *data, mqd_t queue, int *fd);
 
 /**
  * @brief Ejecuta las funciones de ganador cuando acaba el minado
@@ -119,13 +119,8 @@ void ganador(Mem_Sys *data, int resultado, mqd_t queue);
  * @param data memoria compartida donde se almacena la información del sistema
  */
 void perdedor(Mem_Sys *data);
-/**
-* @brief Termina la ejecución del minero
-* 
-* @param data memoria compartida donde se almacena la información del sistema
-* @param queue cola de mensajes que se usará para comunicarse con el sistema
-*/
-void terminar(Mem_Sys *data, mqd_t queue, int *fd);
+
+void terminar(Mem_Sys *data, mqd_t queue,int  *fd);
 
 
 /**
@@ -135,8 +130,7 @@ void terminar(Mem_Sys *data, mqd_t queue, int *fd);
  * @param data memoria compartida donde se almacena la información del sistema
  */
 void abandonar_sistema(Mem_Sys *data);
-
-void minero(int seconds, int threads, Mem_Sys *data, int *fd) {
+int minero(int seconds, int threads, Mem_Sys *data, int *fd) {
     struct mq_attr attributes;
     mqd_t queue;
     struct sigaction act;
@@ -168,40 +162,41 @@ void minero(int seconds, int threads, Mem_Sys *data, int *fd) {
         munmap(data, sizeof(Mem_Sys));
 
         perror("Error al abrir la cola de mensajes");
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
     
     if (sigaction(SIGUSR1, &act, NULL) < 0) {
         terminar(data, queue, fd);
         perror("sigaction");
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
     
     if (sigaction(SIGALRM, &act, NULL) < 0) {
         terminar(data, queue, fd);
         perror("sigaction");
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
 
     if (sigaction(SIGINT, &act, NULL) < 0) {
         terminar(data, queue, fd);
         perror("sigaction");
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
 
     if (sigaction(SIGUSR2, &act, NULL) < 0) {
         terminar(data, queue, fd);
         perror("sigaction");
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
 
     /*Activar alarma*/
     if (alarm(seconds)) {
         fprintf(stderr, "Fallo al configurar la alarma\n");
         terminar(data, queue, fd);
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
-    
+
+    sem_post(&data->iniciar);
     if (data->primero == getpid()) {
         esperar_milisegundos(100);
         next_round(data);
@@ -210,8 +205,10 @@ void minero(int seconds, int threads, Mem_Sys *data, int *fd) {
     while (1) {
         esperar_milisegundos(100);
         if (usr1_signal == 1) {
-            start_mining(threads, data, queue, fd);
-
+            if (start_mining(threads, data, queue, fd) == EXIT_FAILURE) {
+                terminar(data, queue, fd);
+                return EXIT_FAILURE;
+            }
         }
 
 
@@ -221,10 +218,11 @@ void minero(int seconds, int threads, Mem_Sys *data, int *fd) {
             break;
         }
     }
-    exit(EXIT_SUCCESS);
+
+    return EXIT_SUCCESS;
 }
 
-void start_mining(int threads, Mem_Sys *data, mqd_t queue, int *fd) {
+int start_mining(int threads, Mem_Sys *data, mqd_t queue, int *fd) {
     int n_intentos;
     bool found;
     Args *arg;
@@ -240,14 +238,14 @@ void start_mining(int threads, Mem_Sys *data, mqd_t queue, int *fd) {
     hilos = malloc(threads * sizeof(pthread_t));
     if (!hilos) {
         perror("Error reservando memoria para hilos");
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
 
     arg = malloc(threads * sizeof(Args));
     if (!arg) {
         perror("Error reservando memoria para argumentos");
         free(hilos);
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
 
     /* Dividir espacio de búsqueda */
@@ -270,7 +268,7 @@ void start_mining(int threads, Mem_Sys *data, mqd_t queue, int *fd) {
             fprintf(stderr, "pthread_create: %s\n", strerror(error));
             free(hilos);
             free(arg);
-            exit(EXIT_FAILURE);
+            return EXIT_FAILURE;
         }
     }
 
@@ -280,7 +278,7 @@ void start_mining(int threads, Mem_Sys *data, mqd_t queue, int *fd) {
             fprintf(stderr, "pthread_join: %s\n", strerror(error));
             free(hilos);
             free(arg);
-            exit(EXIT_FAILURE);
+            return EXIT_FAILURE;
         }
     }
 
@@ -288,9 +286,11 @@ void start_mining(int threads, Mem_Sys *data, mqd_t queue, int *fd) {
     free(arg);
 
     /* Manejo del resultado */
-
-    
-    if (usr2_signal == 1) {
+    if (alarm_signal == 1) {
+        terminar(data, queue, fd);
+        return EXIT_SUCCESS;
+    }
+    else if (usr2_signal == 1) {
         perdedor(data);
     }
     else {
@@ -302,13 +302,13 @@ void start_mining(int threads, Mem_Sys *data, mqd_t queue, int *fd) {
             while (timeout < 40) {  
                 if (usr2_signal == 1) {
                     perdedor(data);
-                    exit(EXIT_FAILURE);
+                    return EXIT_SUCCESS;
                 }
                 esperar_milisegundos(50);
                 timeout++;
             }
             terminar(data, queue, fd);
-            exit(EXIT_FAILURE);
+            return EXIT_SUCCESS;
         }
     }
 
@@ -317,9 +317,9 @@ void start_mining(int threads, Mem_Sys *data, mqd_t queue, int *fd) {
     if (nbytes == -1) {
         perror("Error al escribir en el pipe");
         terminar(data, queue, fd);
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
-    exit(EXIT_SUCCESS);
+    return EXIT_SUCCESS;
 }
 
 
@@ -449,7 +449,7 @@ void perdedor(Mem_Sys *data){
 }
 
 void terminar(Mem_Sys *data, mqd_t queue, int *fd) {
-    int status2;
+    int status;
     abandonar_sistema(data);
     
     if (data->mineros == 0) {
@@ -462,17 +462,17 @@ void terminar(Mem_Sys *data, mqd_t queue, int *fd) {
         sem_destroy(&data->ganador);
         sem_destroy(&data->iniciar);
     }
-    
 
+    while(data->mineros > 0) {
+    }
 
     munmap(data, sizeof(Mem_Sys));
     mq_close(queue);
 
-
     close(fd[1]);
-    wait(&status2);
-    fprintf(stdout,"Registrador terminó con estado %d\n", WEXITSTATUS(status2));
-
+    wait(&status);
+    fprintf(stdout,"Registrador terminó con estado %d\n", WEXITSTATUS(status));
+    fflush(stdout);
     exit(EXIT_SUCCESS);
 }
 
@@ -494,7 +494,5 @@ void abandonar_sistema(Mem_Sys *data) {
         data->actual.finish = true;
     }
     
-    printf("Un minero salió del sistema, quedan %d\n", data->mineros);
-    fflush(stdout);
     sem_post(&data->iniciar);
 }
