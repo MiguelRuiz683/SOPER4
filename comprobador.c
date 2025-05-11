@@ -52,7 +52,7 @@ int comprobador(int fd_shm) {
     if (data == MAP_FAILED) {
         perror("mmap");
         shm_unlink(SHM_NAME);
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
 
     data->in = 0;
@@ -61,15 +61,15 @@ int comprobador(int fd_shm) {
     /*Inicialización de semáforos con control de errores*/
     if (sem_init(&data->empty, 1, MAX_MSG) == -1) {
         perror("sem_init empty");
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
     if (sem_init(&data->fill, 1, 0) == -1) {
         perror("sem_init full");
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
     if (sem_init(&data->mutex, 1, 1) == -1) {
         perror("sem_init mutex");
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
     
     
@@ -79,7 +79,7 @@ int comprobador(int fd_shm) {
 
         if (mq_receive(queue, (char*) &bloque, sizeof(Bloque), &prior) == -1) {
             perror("mq_receive");
-            exit(EXIT_FAILURE);
+            return EXIT_FAILURE;
         }    
 
         if (finish == false) {
@@ -93,7 +93,6 @@ int comprobador(int fd_shm) {
             sem_post(&data->mutex);
             sem_post(&data->fill);
             munmap(data,sizeof(data_message));
-            close(fd_shm);
             mq_close(queue);
             mq_unlink(MQ_NAME);
             break;

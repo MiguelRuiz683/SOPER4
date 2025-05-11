@@ -8,12 +8,14 @@
 #include <unistd.h>
 #include <signal.h>       
 #include <string.h>
-
+#include <sys/types.h>
+#include <sys/wait.h>
 
 
 
 #include "minero.h"
 #include "utilities.h"
+#include "registrador.h"
 
 
 void valores_defecto(Mem_Sys *data);
@@ -24,6 +26,11 @@ int main(int argc, char **argv) {
     int fd_shm;
     Mem_Sys *data = NULL;
     int monitor;
+    int fd[2];
+    int pipe_status;
+    pid_t registrador_pid;
+    int status1, status2;
+
     if (argc != 3) {
         fprintf(stderr, "Invalid input\n");
         exit(EXIT_FAILURE);
@@ -92,16 +99,48 @@ int main(int argc, char **argv) {
     }
 
     if (!registrar_minero(data)) {
+        munmap(data, sizeof(Mem_Sys));
         fprintf(stderr, "El sistema está lleno. Inténtelo más tarde.\n");
         exit(EXIT_FAILURE);
     }
 
-    minero(n_seconds, n_threads, data);
+    pipe_status = pipe(fd);
+    if (pipe_status == -1) {
+        munmap(data, sizeof(Mem_Sys));
+        if (data->mineros == 0) {
+            shm_unlink(SHM_NAME);
+        }
+        perror("Pipe");
+        exit(EXIT_FAILURE);
+    }
+
+    registrador_pid = fork();
+    if (registrador_pid == -1) {
+        munmap(data, sizeof(Mem_Sys));
+        if (data->mineros == 0) {
+            shm_unlink(SHM_NAME);
+        }
+        perror("Fork");
+        exit(EXIT_FAILURE);
+    } else if (registrador_pid == 0) {
+        munmap(data, sizeof(Mem_Sys));
+        close(fd[1]);
+        if (registrador(fd) == EXIT_FAILURE) {
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        close(fd[0]);
+        status1 = minero(n_seconds, n_threads, data, fd);
+        close(fd[1]);
+        wait(&status2);
+        fprintf(stdout,"Registrador terminó con estado %d\n", WEXITSTATUS(status2));
+        if (status1 == EXIT_FAILURE) {
+            exit(EXIT_FAILURE);
+        }
+    }
 
     exit(EXIT_SUCCESS);
 }
-
-
 
 void valores_defecto(Mem_Sys *data){
     data->listo = false;
@@ -114,19 +153,24 @@ void valores_defecto(Mem_Sys *data){
     data->actual.votos_tot = 0;
 
     if (sem_init(&data->ganador, 1, 1) == -1) {
+        munmap(data, sizeof(Mem_Sys));
+        shm_unlink(SHM_NAME);
         perror("sem_init ganador");
         exit(EXIT_FAILURE);
     }
     if (sem_init(&data->memory, 1, 1) == -1) {
+        munmap(data, sizeof(Mem_Sys));
+        shm_unlink(SHM_NAME);
         perror("sem_init memory");
         exit(EXIT_FAILURE);
     }
     if (sem_init(&data->iniciar, 1, 1) == -1) {
+        munmap(data, sizeof(Mem_Sys));
+        shm_unlink(SHM_NAME);
         perror("sem_init iniciar");
         exit(EXIT_FAILURE);
     }
     data->listo = true;
-
 }
 
 int registrar_minero(Mem_Sys *data) {
@@ -135,8 +179,6 @@ int registrar_minero(Mem_Sys *data) {
     int i;
 
     sem_wait(&data->iniciar);
-    
-
 
     for ( i = 0; i < MAX_PIDS; i++) {
         if (data->pids[i] == 0) {

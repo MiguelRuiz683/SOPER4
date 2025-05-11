@@ -1,6 +1,8 @@
 {
     "files.associations": {
         "stat.h": "c",
-        "mman.h": "c"
-    }
+        "mman.h": "c",
+        "types.h": "c"
+    },
+    "C_Cpp.default.compilerPath": "/usr/bin/gcc"
 }

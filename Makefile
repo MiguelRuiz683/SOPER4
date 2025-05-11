@@ -25,28 +25,28 @@ $(EXE1) : % : %.o monitor1.o comprobador.o wait.o pow.o
 	@echo "# Has changed $<"
 	$(CC) $(CFLAGS) -o $@ $@.o comprobador.o monitor1.o wait.o pow.o -lm -lrt
 
-$(EXE2) : % : %.o minero.o pow.o wait.o
+$(EXE2) : % : %.o minero.o pow.o wait.o registrador.o
 	@echo "#---------------------------"
 	@echo "# Generating $@ "
 	@echo "# Depepends on $^"
 	@echo "# Has changed $<"
-	$(CC) $(CFLAGS) -o $@ $@.o minero.o pow.o wait.o -lm -lrt
+	$(CC) $(CFLAGS) -o $@ $@.o minero.o pow.o wait.o registrador.o -lm -lrt
 
-minero.o: minero.c pow.h minero.h monitor1.h utilities.h
+minero.o: minero.c pow.h minero.h utilities.h monitor1.h registrador.h
 	@echo "#---------------------------"
 	@echo "# Generating $@ "
 	@echo "# Depepends on $^"
 	@echo "# Has changed $<"
 	$(CC) $(CFLAGS) -c $<
 
-pow.o : pow.c pow.h
+pow.o: pow.c pow.h
 	@echo "#---------------------------"
 	@echo "# Generating $@ "
 	@echo "# Depepends on $^"
 	@echo "# Has changed $<"
 	$(CC) $(CFLAGS) -c $< -lm
 
-monitor1.o : monitor1.c monitor1.h
+monitor1.o: monitor1.c utilities.h pow.h monitor1.h
 	@echo "#---------------------------"
 	@echo "# Generating $@ "
 	@echo "# Depepends on $^"
@@ -54,7 +54,7 @@ monitor1.o : monitor1.c monitor1.h
 	$(CC) $(CFLAGS) -c $<
 
 
-comprobador.o : comprobador.c comprobador.h
+comprobador.o: comprobador.c comprobador.h utilities.h pow.h
 	@echo "#---------------------------"
 	@echo "# Generating $@ "
 	@echo "# Depepends on $^"
@@ -62,7 +62,14 @@ comprobador.o : comprobador.c comprobador.h
 	$(CC) $(CFLAGS) -c $<
 
 
-utilities.o : wait.c utilities.h
+utilities.o: wait.c utilities.h pow.h
+	@echo "#---------------------------"
+	@echo "# Generating $@ "
+	@echo "# Depepends on $^"
+	@echo "# Has changed $<"
+	$(CC) $(CFLAGS) -c $<
+
+registrador.o: registrador.c registrador.h utilities.h pow.h
 	@echo "#---------------------------"
 	@echo "# Generating $@ "
 	@echo "# Depepends on $^"

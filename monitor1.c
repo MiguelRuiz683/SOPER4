@@ -33,7 +33,7 @@ int monitor(int fd_shm) {
     if (data == MAP_FAILED) {
         perror("mmap");
         shm_unlink(SHM_NAME);
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
 
     esperar_milisegundos(100);
@@ -54,8 +54,7 @@ int monitor(int fd_shm) {
         if (data->in > data->out) {
             if (data->bloques[data->out%BUFFER_SIZE].finish == true || data->finish[data->out%BUFFER_SIZE] == true) {
                 flag = true;
-            } else{
-            
+            } else{ 
                 fprintf(stdout, "Id: %d\n", data->bloques[data->out%BUFFER_SIZE].id_bloque);
                 fprintf(stdout, "Winner: %d\n", data->bloques[data->out%BUFFER_SIZE].pid);
                 fprintf(stdout, "Target: %ld\n", data->bloques[data->out%BUFFER_SIZE].target);
@@ -67,7 +66,7 @@ int monitor(int fd_shm) {
                 fprintf(stdout, "Votes: %d/%d\n", data->bloques[data->out%BUFFER_SIZE].votos_pos, data->bloques[data->out%BUFFER_SIZE].votos_tot);
                 fprintf(stdout, "Wallets:");
 
-                for ( i = 0; i < data->bloques[data->out%BUFFER_SIZE].votos_tot+1; i++) {
+                for ( i = 0; i < data->bloques[data->out%BUFFER_SIZE].votos_tot; i++) {
                     fprintf(stdout, " %d:%d", data->bloques[data->out%BUFFER_SIZE].carteras[i].pid, data->bloques[data->out%BUFFER_SIZE].carteras[i].monedas);
                 }
                 printf("\n\n");

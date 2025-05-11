@@ -33,6 +33,7 @@
 int main(int argc, char **argv) {
   int fd_shm;
   pid_t monitor_pid;
+  int status1, status2;
 
   /*Control de errores*/
   if (argc != 1) {
@@ -57,11 +58,18 @@ int main(int argc, char **argv) {
       shm_unlink(SHM_NAME);
       exit(EXIT_FAILURE);
     }
-    comprobador(fd_shm);
+    if (comprobador(fd_shm) == EXIT_FAILURE) {
+      perror("Error en comprobador");
+      exit(EXIT_FAILURE);
+    }
   } else {
-    monitor(fd_shm);
+    status1 = monitor(fd_shm);
+    wait(&status2);
+    fprintf(stdout, "Comprobador terminó con estado %d\n", WEXITSTATUS(status2));
+    if (status1 == EXIT_FAILURE) {
+      exit(EXIT_FAILURE);
+    }
   }
-  wait(NULL);
   
   exit(EXIT_SUCCESS);
 }
